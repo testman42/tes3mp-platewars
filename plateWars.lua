@@ -297,7 +297,7 @@ end
 -- Prevent inventory bomb from being dropped into the world regularly
 function plateWars.OnObjectPlaceValidator(eventStatus, pid, cellDescription, objects, targetPlayers)
     for _, object in pairs(objects) do
-        if object.refId == bomRefIds.inv then
+        if object.refId == bombRefIds.inv then
             return customEventHooks.makeEventStatus(false, false)
         end
     end
@@ -309,6 +309,7 @@ function plateWars.OnPlayerInventoryValidator(eventStatus, pid, playerPacket)
         for _, item in ipairs(playerPacket.inventory) do
             -- Allow the inventory bomb to be removed from planting, dead or disconnecting pid's inventory
             if pid ~= plantingPid and Players[pid].forceRemoveBomb == nil and item.refId == bombRefIds.inv then
+                Players[pid]:LoadItemChanges({{refId = bombRefIds.inv, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.ADD)
                 return customEventHooks.makeEventStatus(false, false)
             end
         end
@@ -377,13 +378,11 @@ function plateWars.OnPlayerDisconnectValidator(eventStatus, pid)
 end
 
 customEventHooks.registerHandler("OnServerPostInit",plateWars.OnServerPostInitHandler)
-
 customEventHooks.registerHandler("OnObjectActivate",plateWars.OnObjectActivateHandler)
 
-customEventHooks.registerHandler("OnPlayerInventory",plateWars.OnPlayerInventoryValidator)
-
+customEventHooks.registerValidator("OnPlayerInventory",plateWars.OnPlayerInventoryValidator)
+customEventHooks.registerValidator("OnObjectPlace",plateWars.OnObjectPlaceValidator)
 customEventHooks.registerValidator("OnPlayerDeath",plateWars.OnPlayerDeathValidator)
-
 customEventHooks.registerValidator("OnPlayerDisconnect",plateWars.OnPlayerDisconnectValidator)
 
 return plateWars
