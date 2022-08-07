@@ -1,6 +1,6 @@
-# tes3mp-bombsite
+# tes3mp-platewars
 Custom game mode for TES3MP
 
 ## Credits
-Boyos
+Boyos \
 Nkfree

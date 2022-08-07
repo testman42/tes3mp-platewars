@@ -25,7 +25,7 @@ defuse timer
 
 ]]
 
-local bombSite = {}
+local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
@@ -56,7 +56,7 @@ local bombExplodeCfg = {
     consoleCommand = "ExplodeSpell " .. bombExplodeId
 }
 
-local bombSiteRefIds = {
+local plateWarsRefIds = {
     de_site_01 = {
         bombPositionOffset = {
             posX = 0,
@@ -80,7 +80,7 @@ local bombSiteRefIds = {
 }
 local bombRefIds = { world = "de_bomb_01", inv = "de_bomb_item_01"}
 
-local bombSiteRecords = {
+local plateWarsRecords = {
     {
         id = "de_site_01",
         recordType = "activator",
@@ -148,7 +148,7 @@ local bombSiteRecords = {
     }
 }
 
-function bombSite.bombDefused(cellDescription, bombIndex)
+function plateWars.bombDefused(cellDescription, bombIndex)
     defusingPid = -1
     if bombTimer ~= nil then
         tes3mp.StopTimer(bombTimer)
@@ -161,9 +161,9 @@ function bombSite.bombDefused(cellDescription, bombIndex)
     --TODO: Handle round win for blue
 end
 
-function bombSite.bombDetonate(cellDescription, bombIndex)
+function plateWars.bombDetonate(cellDescription, bombIndex)
     if defuseTimer ~= nil then
-        bombSite.enablePlayerControls(defusingPid)
+        plateWars.enablePlayerControls(defusingPid)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(defusingPid).." stopped defusing because there was no time left")
         defusingPid = -1
         tes3mp.StopTimer(defuseTimer)
@@ -177,7 +177,7 @@ function bombSite.bombDetonate(cellDescription, bombIndex)
     --TODO: Handle round win for brown
 end
 
-function bombSite.getBombPos(sitePos, offset)
+function plateWars.getBombPos(sitePos, offset)
     local bombPos = {}
     for key,value in pairs(offset) do
         bombPos[key] = sitePos[key] + value
@@ -185,26 +185,26 @@ function bombSite.getBombPos(sitePos, offset)
     return bombPos
 end
 
-function bombSiteBombTimer(timeLeft, cellDescription, bombIndex)
+function plateWarsBombTimer(timeLeft, cellDescription, bombIndex)
     if timeLeft > 0 then
         --Just making the assumption that all players are in the game, can replace with teams if needed
         for pid, player in pairs(Players) do
             tes3mp.MessageBox(pid,-1,color.Brown..timeLeft.." seconds till plate destruction")
         end
         if timeLeft > 10 then
-            bombTimer = tes3mp.CreateTimerEx("bombSiteBombTimer",1000*bombTimeIncrement, "iss", timeLeft-bombTimeIncrement, cellDescription, bombIndex)
+            bombTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*bombTimeIncrement, "iss", timeLeft-bombTimeIncrement, cellDescription, bombIndex)
             tes3mp.StartTimer(bombTimer)
         else
-            bombTimer = tes3mp.CreateTimerEx("bombSiteBombTimer",1000*1, "iss", timeLeft-1, cellDescription, bombIndex)
+            bombTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*1, "iss", timeLeft-1, cellDescription, bombIndex)
             tes3mp.StartTimer(bombTimer)
         end
     else
-        bombSite.bombDetonate(cellDescription, bombIndex)
+        plateWars.bombDetonate(cellDescription, bombIndex)
     end
 end
 
-function bombSitePlantedTimer(pid, cellDescription, uniqueIndex, refId)
-    local bombPosOffset = bombSiteRefIds[refId].bombPositionOffset
+function plateWarsPlantedTimer(pid, cellDescription, uniqueIndex, refId)
+    local bombPosOffset = plateWarsRefIds[refId].bombPositionOffset
     local sitePos = {}
     local bombPos = {}
 
@@ -214,35 +214,35 @@ function bombSitePlantedTimer(pid, cellDescription, uniqueIndex, refId)
         return
     end
 
-    bombPos = bombSite.getBombPos(sitePos, bombPosOffset)
+    bombPos = plateWars.getBombPos(sitePos, bombPosOffset)
     local bombIndex = logicHandler.CreateObjectAtLocation(cellDescription, bombPos, {refId = bombRefIds.world, count = 1,charge = -1, enchantmentCharge = -1, soul = ""}, "place")
-    bombSite.removeBomb(pid)
-    bombSite.enablePlayerControls(pid)
+    plateWars.removeBomb(pid)
+    plateWars.enablePlayerControls(pid)
     plantingPid = -1
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." finished planting the bomb at "..refId.."("..uniqueIndex..") in cell "..cellDescription)
     tes3mp.MessageBox(pid, -1, color.Green.."You finished planting the Plate Buster")
 
-    bombTimer = tes3mp.CreateTimerEx("bombSiteBombTimer",1000*bombTimeIncrement, "iss", bombTime-bombTimeIncrement, cellDescription, bombIndex)
+    bombTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*bombTimeIncrement, "iss", bombTime-bombTimeIncrement, cellDescription, bombIndex)
     tes3mp.StartTimer(bombTimer)
     --TODO: Play abnoxious voice line?
 end
 
-function bombSiteDefusedTimer(pid, cellDescription, uniqueIndex)
-    bombSite.enablePlayerControls(pid)
-    bombSite.bombDefused(cellDescription, uniqueIndex)
+function plateWarsDefusedTimer(pid, cellDescription, uniqueIndex)
+    plateWars.enablePlayerControls(pid)
+    plateWars.bombDefused(cellDescription, uniqueIndex)
 end
 
-function bombSite.hasBomb(pid)
+function plateWars.hasBomb(pid)
     return bombCarrierPid == pid
 end
 
-function bombSite.removeBomb(pid)
+function plateWars.removeBomb(pid)
     inventoryHelper.removeItem(Players[pid].data.inventory, bombRefIds.inv, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = bombRefIds.inv, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.REMOVE)
     bombCarrierPid = -1
 end
 
-function bombSite.dropBomb(pid)
+function plateWars.dropBomb(pid)
     local cell = tes3mp.GetCell(pid)
     local location = {
         posX = tes3mp.GetPosX(pid), posY = tes3mp.GetPosY(pid), posZ = tes3mp.GetPosZ(pid),
@@ -251,27 +251,27 @@ function bombSite.dropBomb(pid)
     --drop bomb above player's corpse
     location.posZ = location.posZ + 15
     
-    bombSite.removeBomb(pid)
+    plateWars.removeBomb(pid)
     logicHandler.CreateObjectAtLocation(cell, location, {refId = bombRefIds.inv, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}, "place")
 end
 
-function bombSite.disablePlayerControls(pid)
+function plateWars.disablePlayerControls(pid)
     logicHandler.RunConsoleCommandOnPlayer(pid,"DisablePlayerControls")
 end
 
-function bombSite.enablePlayerControls(pid)
+function plateWars.enablePlayerControls(pid)
     logicHandler.RunConsoleCommandOnPlayer(pid,"EnablePlayerControls")
 end
 
-function bombSite.handleDefuse(pid, cellDescription, object)
+function plateWars.handleDefuse(pid, cellDescription, object)
     --TODO: Add check if player is on the blue team
     if defusingPid ~= -1 then
         tes3mp.MessageBox(pid, -1, color.Red.."Someone else is already defusing")
     else
         --Begin Defuse
-        bombSite.disablePlayerControls(pid)
+        plateWars.disablePlayerControls(pid)
         defusingPid = pid
-        defuseTimer = tes3mp.CreateTimerEx("bombSiteDefusedTimer",1000 * defuseTime, "iss", pid, cellDescription, object.uniqueIndex)
+        defuseTimer = tes3mp.CreateTimerEx("plateWarsDefusedTimer",1000 * defuseTime, "iss", pid, cellDescription, object.uniqueIndex)
         tes3mp.StartTimer(defuseTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." started defusing the bomb: "..object.uniqueIndex.." in cell "..cellDescription)
         tes3mp.MessageBox(pid, -1, color.Green.."You have begun defusing the Plate Buster")
@@ -279,13 +279,13 @@ function bombSite.handleDefuse(pid, cellDescription, object)
     
 end
 
-function bombSite.handlePlant(pid, cellDescription, object)
+function plateWars.handlePlant(pid, cellDescription, object)
     --TODO: Add check if player is on the brown team
-    if bombSite.hasBomb(pid) then
+    if plateWars.hasBomb(pid) then
         --Begin planting
-        bombSite.disablePlayerControls(pid)
+        plateWars.disablePlayerControls(pid)
         plantingPid = pid
-        plantTimer = tes3mp.CreateTimerEx("bombSitePlantedTimer",1000 * plantTime, "isss", pid, cellDescription, object.uniqueIndex, object.refId)
+        plantTimer = tes3mp.CreateTimerEx("plateWarsPlantedTimer",1000 * plantTime, "isss", pid, cellDescription, object.uniqueIndex, object.refId)
         tes3mp.StartTimer(plantTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." started planting the bomb at "..object.refId.."("..object.uniqueIndex..") in cell "..cellDescription)
         tes3mp.MessageBox(pid, -1, color.Green.."You have begun planting the Plate Buster")
@@ -295,7 +295,7 @@ function bombSite.handlePlant(pid, cellDescription, object)
 end
 
 -- Prevent inventory bomb from being dropped into the world regularly
-function bombSite.OnObjectPlaceValidator(eventStatus, pid, cellDescription, objects, targetPlayers)
+function plateWars.OnObjectPlaceValidator(eventStatus, pid, cellDescription, objects, targetPlayers)
     for _, object in pairs(objects) do
         if object.refId == bombRefIds.inv then
             return customEventHooks.makeEventStatus(false, false)
@@ -304,7 +304,7 @@ function bombSite.OnObjectPlaceValidator(eventStatus, pid, cellDescription, obje
 end
 
 -- Prevent inventory bomb from being removed regularly, ie. by dragging and dropping it into the world
-function bombSite.OnPlayerInventoryValidator(eventStatus, pid, playerPacket)
+function plateWars.OnPlayerInventoryValidator(eventStatus, pid, playerPacket)
     if playerPacket.action == enumerations.inventory.REMOVE then
         for _, item in ipairs(playerPacket.inventory) do
             -- Allow the inventory bomb to be removed from planting, dead or disconnecting pid's inventory
@@ -316,49 +316,49 @@ function bombSite.OnPlayerInventoryValidator(eventStatus, pid, playerPacket)
     end
 end
 
-function bombSite.OnObjectActivateHandler(eventStatus, pid, cellDescription, objects, targetPlayers)
+function plateWars.OnObjectActivateHandler(eventStatus, pid, cellDescription, objects, targetPlayers)
     if eventStatus.validCustomHandlers ~= false and eventStatus.validDefaultHandler ~= false then
         for _,object in pairs(objects) do
-            if bombSiteRefIds[object.refId] ~= nil then
+            if plateWarsRefIds[object.refId] ~= nil then
                 --The player activated one of the sites
-                bombSite.handlePlant(pid, cellDescription, object)
+                plateWars.handlePlant(pid, cellDescription, object)
             end
             if object.refId == bombRefIds.world then
                 --The Player activated an armed bomb
-                bombSite.handleDefuse(pid, cellDescription, object)
+                plateWars.handleDefuse(pid, cellDescription, object)
             end
         end
     end
 end
 
-function bombSite.OnServerPostInitHandler()
-    for _,record in pairs(bombSiteRecords) do
+function plateWars.OnServerPostInitHandler()
+    for _,record in pairs(plateWarsRecords) do
         RecordStores[record.recordType].data.permanentRecords[record.id] = tableHelper.deepCopy(record.recordData)
     end
 end
 
-function bombSite.OnPlayerDeathValidator(eventStatus, pid)
+function plateWars.OnPlayerDeathValidator(eventStatus, pid)
     if pid == plantingPid then
         tes3mp.StopTimer(plantTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." stopped planting because they died")
         plantingPid = -1
-        bombSite.enablePlayerControls(pid)
+        plateWars.enablePlayerControls(pid)
     elseif pid == defusingPid then
         tes3mp.StopTimer(defuseTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." stopped defusing because they died")
         defusingPid = -1
-        bombSite.enablePlayerControls(pid)
+        plateWars.enablePlayerControls(pid)
     end
     
-    if bombSite.hasBomb(pid) then
+    if plateWars.hasBomb(pid) then
         Players[pid].forceRemoveBomb = true
-        bombSite.dropBomb(pid)
+        plateWars.dropBomb(pid)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." dropped the bomb because they died")
         Players[pid].forceRemoveBomb = nil
     end
 end
 
-function bombSite.OnPlayerDisconnectValidator(eventStatus, pid)
+function plateWars.OnPlayerDisconnectValidator(eventStatus, pid)
     if pid == plantingPid then
         tes3mp.StopTimer(plantTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." stopped planting because they disconnected")
@@ -369,20 +369,20 @@ function bombSite.OnPlayerDisconnectValidator(eventStatus, pid)
         defusingPid = -1
     end
     
-    if bombSite.hasBomb(pid) then
+    if plateWars.hasBomb(pid) then
         Players[pid].forceRemoveBomb = true
-        bombSite.dropBomb(pid)
+        plateWars.dropBomb(pid)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." dropped the bomb because they disconnected")
         Players[pid].forceRemoveBomb = nil
     end
 end
 
-customEventHooks.registerHandler("OnServerPostInit",bombSite.OnServerPostInitHandler)
-customEventHooks.registerHandler("OnObjectActivate",bombSite.OnObjectActivateHandler)
+customEventHooks.registerHandler("OnServerPostInit",plateWars.OnServerPostInitHandler)
+customEventHooks.registerHandler("OnObjectActivate",plateWars.OnObjectActivateHandler)
 
-customEventHooks.registerValidator("OnPlayerInventory",bombSite.OnPlayerInventoryValidator)
-customEventHooks.registerValidator("OnObjectPlace",bombSite.OnObjectPlaceValidator)
-customEventHooks.registerValidator("OnPlayerDeath",bombSite.OnPlayerDeathValidator)
-customEventHooks.registerValidator("OnPlayerDisconnect",bombSite.OnPlayerDisconnectValidator)
+customEventHooks.registerValidator("OnPlayerInventory",plateWars.OnPlayerInventoryValidator)
+customEventHooks.registerValidator("OnObjectPlace",plateWars.OnObjectPlaceValidator)
+customEventHooks.registerValidator("OnPlayerDeath",plateWars.OnPlayerDeathValidator)
+customEventHooks.registerValidator("OnPlayerDisconnect",plateWars.OnPlayerDisconnectValidator)
 
-return bombSite
+return plateWars
