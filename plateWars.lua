@@ -145,6 +145,41 @@ local plateWarsRecords = {
                 }
             }
         }
+    },
+    {
+        id = "de_s_bm_idle_2",
+        recordType = "sound",
+        recordData = {
+            sound = "Vo\\b\\m\\Idl_BM002.mp3" --The blue plates are nice but the brown ones seem to last longer
+        }
+    },
+    {
+        id = "de_s_bm_idle_6",
+        recordType = "sound",
+        recordData = {
+            sound = "Vo\\b\\m\\Idl_BM006.mp3" --*Whistles*
+        }
+    },
+    {
+        id = "de_s_bm_attack_7",
+        recordType = "sound",
+        recordData = {
+            sound = "Vo\\b\\m\\Atk_BM007.mp3" --Not Long Now
+        }
+    },
+    {
+        id = "de_s_bm_attack_15",
+        recordType = "sound",
+        recordData = {
+            sound = "Vo\\b\\m\\Atk_BM015.mp3" --Run while you can
+        }
+    },
+    {
+        id = "de_s_bm_hello_17",
+        recordType = "sound",
+        recordData = {
+            sound = "Vo\\b\\m\\Hlo_BM017.mp3" --What a revolting display
+        }
     }
 }
 
@@ -153,9 +188,8 @@ function plateWars.bombDefused(cellDescription, bombIndex)
     if bombTimer ~= nil then
         tes3mp.StopTimer(bombTimer)
     end
-    for pid, player in pairs(Players) do
-        tes3mp.MessageBox(pid,-1,color.Blue.."The Blue plates have outlasted the Brown")
-    end
+    --plateWars.announcement(color.Blue.."The Blue plates have outlasted the Brown")
+    plateWars.announcement(color.Blue.."What a revolting display","de_s_bm_hello_17")
     logicHandler.DeleteObjectForEveryone(cellDescription, bombIndex)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix.."Bomb defused, blue team wins")
     --TODO: Handle round win for blue
@@ -168,12 +202,10 @@ function plateWars.bombDetonate(cellDescription, bombIndex)
         defusingPid = -1
         tes3mp.StopTimer(defuseTimer)
     end
-    for pid, player in pairs(Players) do
-        tes3mp.MessageBox(pid,-1,color.Brown.."Boom!")
-    end
     logicHandler.RunConsoleCommandOnObjects(tableHelper.getAnyValue(Players).pid, bombExplodeCfg.consoleCommand, cellDescription, {bombIndex}, true)
     logicHandler.DeleteObjectForEveryone(cellDescription, bombIndex)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix.."Bomb detonated, brown team wins")
+    plateWars.announcement(color.Brown.."The blue plates are nice but the brown ones seem to last longer","de_s_bm_idle_2")
     --TODO: Handle round win for brown
 end
 
@@ -187,14 +219,17 @@ end
 
 function plateWarsBombTimer(timeLeft, cellDescription, bombIndex)
     if timeLeft > 0 then
-        --Just making the assumption that all players are in the game, can replace with teams if needed
-        for pid, player in pairs(Players) do
-            tes3mp.MessageBox(pid,-1,color.Brown..timeLeft.." seconds till plate destruction")
-        end
+        
+        plateWars.announcement(color.Brown..timeLeft.." seconds till plate destruction")
         if timeLeft > 10 then
             bombTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*bombTimeIncrement, "iss", timeLeft-bombTimeIncrement, cellDescription, bombIndex)
             tes3mp.StartTimer(bombTimer)
         else
+            if timeLeft == 10 then
+                plateWars.announcement(color.Brown.."Not Long Now","de_s_bm_attack_7")
+            elseif timeLeft == defuseTime-1 then
+                plateWars.announcement(color.Brown.."Run while you can","de_s_bm_attack_15")
+            end
             bombTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*1, "iss", timeLeft-1, cellDescription, bombIndex)
             tes3mp.StartTimer(bombTimer)
         end
@@ -221,6 +256,7 @@ function plateWarsPlantedTimer(pid, cellDescription, uniqueIndex, refId)
     plantingPid = -1
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." finished planting the bomb at "..refId.."("..uniqueIndex..") in cell "..cellDescription)
     tes3mp.MessageBox(pid, -1, color.Green.."You finished planting the Plate Buster")
+    plateWars.announcement(color.Brown.."*Whistles*","de_s_bm_idle_6")
 
     bombTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*bombTimeIncrement, "iss", bombTime-bombTimeIncrement, cellDescription, bombIndex)
     tes3mp.StartTimer(bombTimer)
@@ -261,6 +297,18 @@ end
 
 function plateWars.enablePlayerControls(pid)
     logicHandler.RunConsoleCommandOnPlayer(pid,"EnablePlayerControls")
+end
+
+function plateWars.announcement(message, sound)
+    --Just making the assumption that all players are in the game, can replace with teams if needed
+    for pid, player in pairs(Players) do
+        if sound ~= nil then
+            logicHandler.RunConsoleCommandOnPlayer(pid,"playsoundVP "..sound.." 100 1")
+        end
+        if message ~= nil then
+            tes3mp.MessageBox(pid,-1,message)
+        end
+    end
 end
 
 function plateWars.handleDefuse(pid, cellDescription, object)
