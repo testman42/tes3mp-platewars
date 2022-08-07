@@ -297,7 +297,7 @@ end
 -- Prevent inventory bomb from being dropped into the world regularly
 function bombSite.OnObjectPlaceValidator(eventStatus, pid, cellDescription, objects, targetPlayers)
     for _, object in pairs(objects) do
-        if object.refId == bomRefIds.inv then
+        if object.refId == bombRefIds.inv then
             return customEventHooks.makeEventStatus(false, false)
         end
     end
@@ -309,6 +309,7 @@ function bombSite.OnPlayerInventoryValidator(eventStatus, pid, playerPacket)
         for _, item in ipairs(playerPacket.inventory) do
             -- Allow the inventory bomb to be removed from planting, dead or disconnecting pid's inventory
             if pid ~= plantingPid and Players[pid].forceRemoveBomb == nil and item.refId == bombRefIds.inv then
+                Players[pid]:LoadItemChanges({{refId = bombRefIds.inv, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.ADD)
                 return customEventHooks.makeEventStatus(false, false)
             end
         end
@@ -377,13 +378,11 @@ function bombSite.OnPlayerDisconnectValidator(eventStatus, pid)
 end
 
 customEventHooks.registerHandler("OnServerPostInit",bombSite.OnServerPostInitHandler)
-
 customEventHooks.registerHandler("OnObjectActivate",bombSite.OnObjectActivateHandler)
 
-customEventHooks.registerHandler("OnPlayerInventory",bombSite.OnPlayerInventoryValidator)
-
+customEventHooks.registerValidator("OnPlayerInventory",bombSite.OnPlayerInventoryValidator)
+customEventHooks.registerValidator("OnObjectPlace",bombSite.OnObjectPlaceValidator)
 customEventHooks.registerValidator("OnPlayerDeath",bombSite.OnPlayerDeathValidator)
-
 customEventHooks.registerValidator("OnPlayerDisconnect",bombSite.OnPlayerDisconnectValidator)
 
 return bombSite
