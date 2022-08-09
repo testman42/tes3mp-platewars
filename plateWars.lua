@@ -39,7 +39,7 @@ plateWars.bomb.refIds = {}
 plateWars.bomb.refIds = {
     explosionSpell = "de_bomb_explosion",
     inventoryItem = "de_bomb_item_01",
-    worldObject = "de_bomb_01",
+    worldObject = "de_bomb_01"
 }
 
 plateWars.bomb.baseData = {
@@ -52,12 +52,11 @@ plateWars.bomb.baseData = {
     defuseTimer = nil,
     plantingPid = -1,
     defusingPid = -1,
-    carrierPid = -1
+    carrierPid = {} -- made it table for testing purposes, so keep the name intact
 }
 
 plateWars.bomb.commands = {
-    explode = "ExplodeSpell " .. plateWars.bomb.refIds.explosionSpell,
-    playTickSound = 'PlaySound3D "Item Ring Up"'
+    explode = "ExplodeSpell " .. plateWars.bomb.refIds.explosionSpell
 }
 
 plateWars.bomb.config = {}
@@ -122,7 +121,7 @@ plateWars.bomb.records[plateWars.bomb.refIds.worldObject] = {
     }
 }
 
-plateWars.bombSite = {}
+plateWars.bombSites = {}
 plateWars.bombSites.baseData = {}
 plateWars.bombSites.records = {}
 plateWars.bombSites.refIds = {}
@@ -183,11 +182,12 @@ plateWars.sounds.refIds = {
     brownPlatesWin = "de_s_bm_idle_2",
     bombPlanted = "de_s_bm_idle_6",
     bombTenSecondsLeft = "de_s_bm_attack_7",
-    bombNoDefuseTime = "de_s_bm_attack_15"
+    bombNoDefuseTime = "de_s_bm_attack_15",
+    bombTick = "de_bomb_tick"
 }
 
 plateWars.sounds.baseData = {
-    defaultLocalVolume = 1,
+    defaultLocalVolume = 100,
     defaultLocalPitch = 1,
     defaultLocalForEveryone = true,
     defaultGlobalVolume = 100,
@@ -200,7 +200,7 @@ plateWars.sounds.commands = {
     playGlobal = "PlaySoundVP "
 }
 
-plateWars.sound.records[plateWars.sounds.refIds.bluePlatesWin] = {
+plateWars.sounds.records[plateWars.sounds.refIds.bluePlatesWin] = {
     type = "sound",
     data = {
         sound = "Vo\\b\\m\\Hlo_BM017.mp3" --What a revolting display
@@ -221,6 +221,13 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombPlanted] = {
     }
 }
 
+plateWars.sounds.records[plateWars.sounds.refIds.bombTick] = {
+    type = "sound",
+    data = {
+        sound = "Fx\\item\\ring.wav" --Bomb tick sound
+    }
+}
+
 plateWars.sounds.records[plateWars.sounds.refIds.bombTenSecondsLeft] = {
     type = "sound",
     data = {
@@ -235,9 +242,8 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime] = {
     }
 }
 
-
-function plateWars.bombPlayTickSound()
-    logicHandler.RunConsoleCommandOnObjects(pid, bombTickSoundConsoleCommand, cellDescription, {bombIndex}, true)
+function plateWars.bombPlayTickSound(cellDescription, bombIndex)
+    plateWars.playSoundLocal(tableHelper.getAnyValue(Players).pid, cellDescription, {bombIndex}, plateWars.sounds.refIds.bombTick)
 end
 
 function plateWars.bombExplode(cellDescription, bombIndex)
@@ -247,7 +253,8 @@ end
 function plateWars.testAddPlayerBomb(pid, cmd)
     inventoryHelper.addItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}}, enumerations.inventory.ADD)
-    plateWars.bomb.baseData.carrierPid = pid
+    -- plateWars.bomb.baseData.carrierPid = pid -- uncomment after testing has been done
+    tableHelper.insertValueIfMissing(plateWars.bomb.baseData.carrierPid, pid)
 end
 -------------------------------------------
 function plateWars.onBombDefused(cellDescription, bombIndex)
@@ -255,9 +262,9 @@ function plateWars.onBombDefused(cellDescription, bombIndex)
     if plateWars.bomb.baseData.tickTimer ~= nil then
         tes3mp.StopTimer(plateWars.bomb.baseData.tickTimer)
     end
-    plateWars.announcement(color.Blue.."What a revolting display","de_s_bm_hello_17")
+    plateWars.announcement(color.Blue .. "What a revolting display", plateWars.sounds.refIds.bluePlatesWin)
     logicHandler.DeleteObjectForEveryone(cellDescription, bombIndex)
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix.."Bomb defused, blue team wins")
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Bomb defused, blue team wins")
     --TODO: Handle round win for blue
 end
 
@@ -290,16 +297,16 @@ end
 
 function plateWars.onBombExplode(cellDescription, bombIndex)
     if plateWars.bomb.baseData.defuseTimer ~= nil then
-        plateWars.enablePlayerControls(plateWars.bomb.baseData.defusingPid)
-        tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(plateWars.bomb.baseData.defusingPid).." stopped defusing because there was no time left")
-        plateWars.bomb.baseData.defusingPid = -1
         tes3mp.StopTimer(plateWars.bomb.baseData.defuseTimer)
+        plateWars.enablePlayerControls(plateWars.bomb.baseData.defusingPid)
+        tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. logicHandler.GetChatName(plateWars.bomb.baseData.defusingPid) .. " stopped defusing because there was no time left")
+        plateWars.bomb.baseData.defusingPid = -1
     end
 
     plateWars.bombExplode(cellDescription, bombIndex)
     logicHandler.DeleteObjectForEveryone(cellDescription, bombIndex)
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix.."Bomb exploded, brown team wins")
-    plateWars.announcement(color.Brown.."The blue plates are nice but the brown ones seem to last longer","de_s_bm_idle_2")
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Bomb exploded, brown team wins")
+    plateWars.announcement(color.Brown .. "The blue plates are nice but the brown ones seem to last longer", plateWars.sounds.refIds.brownPlatesWin)
     --TODO: Handle round win for brown
 end
 
@@ -315,15 +322,16 @@ function plateWarsBombTimer(timeLeft, cellDescription, bombIndex)
     if timeLeft > 0 then
         --Just making the assumption that all players are in the game, can replace with teams if needed
         plateWars.announcement(color.Brown .. timeLeft .. " seconds till plate destruction")
+        plateWars.bombPlayTickSound(cellDescription, bombIndex)
 
         if timeLeft > 10 then
             plateWars.bomb.baseData.tickTimer = tes3mp.CreateTimerEx("plateWarsBombTimer", 1000*plateWars.bomb.baseData.tickTimeIncrement, "iss", timeLeft-plateWars.bomb.baseData.tickTimeIncrement, cellDescription, bombIndex)
             tes3mp.StartTimer(plateWars.bomb.baseData.tickTimer)
         else
             if timeLeft == 10 then
-                plateWars.announcement(color.Brown .. "Not Long Now", "de_s_bm_attack_7")
-            elseif timeLeft == defuseTime-1 then
-                plateWars.announcement(color.Brown .. "Run while you can", "de_s_bm_attack_15")
+                plateWars.announcement(color.Brown .. "Not Long Now", plateWars.sounds.refIds.bombTenSecondsLeft)
+            elseif timeLeft == plateWars.bomb.baseData.defuseTime-1 then
+                plateWars.announcement(color.Brown .. "Run while you can", plateWars.sounds.refIds.bombNoDefuseTime)
             end
 
             plateWars.bomb.baseData.tickTimer = tes3mp.CreateTimerEx("plateWarsBombTimer", 1000*1, "iss", timeLeft-1, cellDescription, bombIndex)
@@ -350,9 +358,9 @@ function plateWarsPlantedTimer(pid, cellDescription, uniqueIndex, refId)
     plateWars.removeBomb(pid)
     plateWars.enablePlayerControls(pid)
     plateWars.bomb.baseData.plantingPid = -1
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." finished planting the bomb at "..refId.."("..uniqueIndex..") in cell "..cellDescription)
-    tes3mp.MessageBox(pid, -1, color.Green.."You finished planting the Plate Buster")
-    plateWars.announcement(color.Brown.."*Whistles*","de_s_bm_idle_6")
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. logicHandler.GetChatName(pid) .. " finished planting the bomb at " .. refId.. "(" ..uniqueIndex .. ") in cell " .. cellDescription)
+    tes3mp.MessageBox(pid, -1, color.Green .. "You finished planting the Plate Buster")
+    plateWars.announcement(color.Brown .. "*Whistles*", plateWars.sounds.refIds.bombPlanted)
 
     plateWars.bomb.baseData.tickTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*plateWars.bomb.baseData.tickTimeIncrement, "iss", plateWars.bomb.baseData.tickTime-plateWars.bomb.baseData.tickTimeIncrement, cellDescription, bombIndex)
     tes3mp.StartTimer(plateWars.bomb.baseData.tickTimer)
@@ -365,13 +373,15 @@ function plateWarsDefusedTimer(pid, cellDescription, uniqueIndex)
 end
 
 function plateWars.hasBomb(pid)
-    return plateWars.bomb.baseData.carrierPid == pid
+    return tableHelper.containsValue(plateWars.bomb.baseData.carrierPid, pid)
+    -- return  plateWars.bomb.baseData.carrierPid == pid -- uncomment after testing, now multiple players can have the bomb in one session
 end
 
 function plateWars.removeBomb(pid)
     inventoryHelper.removeItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.REMOVE)
-    plateWars.bomb.baseData.carrierPid = -1
+    -- plateWars.bomb.baseData.carrierPid = -1 -- uncomment after testing
+    tableHelper.removeValue(plateWars.bomb.baseData.carrierPid, pid)
 end
 
 function plateWars.dropBomb(pid)
@@ -473,6 +483,11 @@ function plateWars.OnServerPostInitHandler()
         local record = plateWars.bombSites.records[refId]
         RecordStores[record.type].data.permanentRecords[refId] = tableHelper.deepCopy(record.data)
     end
+
+    for _, refId in pairs(plateWars.sounds.refIds) do
+        local record = plateWars.sounds.records[refId]
+        RecordStores[record.type].data.permanentRecords[refId] = tableHelper.deepCopy(record.data)
+    end
 end
 
 function plateWars.OnPlayerDeathValidator(eventStatus, pid)
@@ -523,6 +538,6 @@ customEventHooks.registerValidator("OnObjectPlace",plateWars.OnObjectPlaceValida
 customEventHooks.registerValidator("OnPlayerDeath",plateWars.OnPlayerDeathValidator)
 customEventHooks.registerValidator("OnPlayerDisconnect",plateWars.OnPlayerDisconnectValidator)
 
-customCommandHooks.registerCommand("addbomb", plateWars.testAddPlayerBomb)
+customCommandHooks.registerCommand("addBomb", plateWars.testAddPlayerBomb)
 
 return plateWars
