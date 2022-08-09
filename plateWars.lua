@@ -29,6 +29,15 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
+plateWars.teams = {}
+plateWars.teams.baseData = {}
+plateWars.teams.bluePlatesPids = {}
+plateWars.teams.brownPlatesPids = {}
+
+plateWars.teams.baseData = {
+    maxPlayersPerTeam = 3,
+}
+
 plateWars.bomb = {}
 plateWars.bomb.baseData = {}
 plateWars.bomb.commands = {}
@@ -52,7 +61,7 @@ plateWars.bomb.baseData = {
     defuseTimer = nil,
     plantingPid = -1,
     defusingPid = -1,
-    carrierPid = {} -- made it table for testing purposes, so keep the name intact
+    carrierPid = -1
 }
 
 plateWars.bomb.commands = {
@@ -183,7 +192,8 @@ plateWars.sounds.refIds = {
     bombPlanted = "de_s_bm_idle_6",
     bombTenSecondsLeft = "de_s_bm_attack_7",
     bombNoDefuseTime = "de_s_bm_attack_15",
-    bombTick = "de_bomb_tick"
+    bombTick = "de_s_bomb_tick",
+    bombDefuseStart = "de_s_bomb_defuse_start"
 }
 
 plateWars.sounds.baseData = {
@@ -221,6 +231,13 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombPlanted] = {
     }
 }
 
+plateWars.sounds.records[plateWars.sounds.refIds.bombDefuseStart] = {
+    type = "sound",
+    data = {
+        sound = "Fx\\item\\spear.wav" --Bomb is being defused
+    }
+}
+
 plateWars.sounds.records[plateWars.sounds.refIds.bombTick] = {
     type = "sound",
     data = {
@@ -242,21 +259,63 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime] = {
     }
 }
 
+--TODO add message informing player of failed/successful join
+function plateWars.teamJoin(pid, teamPidsTable)
+    if not tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid) and not tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid) then
+        if #teamPidsTable < plateWars.teams.baseData.maxPlayersPerTeam then
+            table.insert(teamPidsTable, pid)
+        end
+    end
+end
+
+function plateWars.teamJoinBluePlates(pid)
+    plateWars.teamJoin(pid, plateWars.teams.bluePlatesPids)
+end
+
+function plateWars.teamJoinBrownPlates(pid)
+    plateWars.teamJoin(pid, plateWars.teams.brownPlatesPids)
+end
+
+function plateWars.teamLeave(pid)
+    if plateWars.teamIsBluePlate(pid) then
+        tableHelper.removeValue(plateWars.teams.bluePlatesPids, pid)
+    elseif plateWars.teamIsBrownPlate(pid) then
+        tableHelper.removeValue(plateWars.teams.brownPlatesPids, pid)
+    end
+end
+
+function plateWars.teamIsBluePlate(pid)
+    return tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid)
+end
+
+function plateWars.teamIsBrownPlate(pid)
+    return tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid)
+end
+
+function plateWars.teamAddBomb(pid)
+    inventoryHelper.addItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
+    Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}}, enumerations.inventory.ADD)
+    plateWars.bomb.baseData.carrierPid = pid
+end
+
+function plateWars.teamAddBombRandom()
+    math.randomseed(os.time())
+    local randomIndex = math.random(#plateWars.teams.brownPlatesPids)
+    plateWars.teamAddBomb(plateWars.teams.brownPlatesPids[randomIndex])
+end
+
 function plateWars.bombPlayTickSound(cellDescription, bombIndex)
     plateWars.playSoundLocal(tableHelper.getAnyValue(Players).pid, cellDescription, {bombIndex}, plateWars.sounds.refIds.bombTick)
+end
+
+function plateWars.bombPlayDefuseStartSound(cellDescription, bombIndex)
+    plateWars.playSoundLocal(tableHelper.getAnyValue(Players).pid, cellDescription, {bombIndex}, plateWars.sounds.refIds.bombDefuseStart)
 end
 
 function plateWars.bombExplode(cellDescription, bombIndex)
     logicHandler.RunConsoleCommandOnObjects(tableHelper.getAnyValue(Players).pid, plateWars.bomb.commands.explode, cellDescription, {bombIndex}, true)
 end
----- TEST FUNCTION, DELETE AFTER NO USE
-function plateWars.testAddPlayerBomb(pid, cmd)
-    inventoryHelper.addItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
-    Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}}, enumerations.inventory.ADD)
-    -- plateWars.bomb.baseData.carrierPid = pid -- uncomment after testing has been done
-    tableHelper.insertValueIfMissing(plateWars.bomb.baseData.carrierPid, pid)
-end
--------------------------------------------
+
 function plateWars.onBombDefused(cellDescription, bombIndex)
     plateWars.bomb.baseData.defusingPid = -1
     if plateWars.bomb.baseData.tickTimer ~= nil then
@@ -373,15 +432,13 @@ function plateWarsDefusedTimer(pid, cellDescription, uniqueIndex)
 end
 
 function plateWars.hasBomb(pid)
-    return tableHelper.containsValue(plateWars.bomb.baseData.carrierPid, pid)
-    -- return  plateWars.bomb.baseData.carrierPid == pid -- uncomment after testing, now multiple players can have the bomb in one session
+    return  plateWars.bomb.baseData.carrierPid == pid
 end
 
 function plateWars.removeBomb(pid)
     inventoryHelper.removeItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.REMOVE)
-    -- plateWars.bomb.baseData.carrierPid = -1 -- uncomment after testing
-    tableHelper.removeValue(plateWars.bomb.baseData.carrierPid, pid)
+    plateWars.bomb.baseData.carrierPid = -1
 end
 
 function plateWars.dropBomb(pid)
@@ -406,23 +463,28 @@ function plateWars.enablePlayerControls(pid)
 end
 
 function plateWars.handleDefuse(pid, cellDescription, object)
-    --TODO: Add check if player is on the blue team
+    -- Only blue plates can defuse
+    if not plateWars.teamIsBluePlate(pid) then
+        return
+    end
+
     if plateWars.bomb.baseData.defusingPid ~= -1 then
-        tes3mp.MessageBox(pid, -1, color.Red.."Someone else is already defusing")
+        tes3mp.MessageBox(pid, -1, color.Red .. "Someone else is already defusing")
     else
         --Begin Defuse
         plateWars.disablePlayerControls(pid)
         plateWars.bomb.baseData.defusingPid = pid
+        plateWars.bombPlayDefuseStartSound(cellDescription, object.uniqueIndex)
         plateWars.bomb.baseData.defuseTimer = tes3mp.CreateTimerEx("plateWarsDefusedTimer",1000 * plateWars.bomb.baseData.defuseTime, "iss", pid, cellDescription, object.uniqueIndex)
         tes3mp.StartTimer(plateWars.bomb.baseData.defuseTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." started defusing the bomb: "..object.uniqueIndex.." in cell "..cellDescription)
         tes3mp.MessageBox(pid, -1, color.Green.."You have begun defusing the Plate Buster")
     end
-    
 end
 
 function plateWars.handlePlant(pid, cellDescription, object)
     --TODO: Add check if player is on the brown team
+    -- This check shouldn't be neccessary as only brown team can be assigned bomb
     if plateWars.hasBomb(pid) then
         --Begin planting
         plateWars.disablePlayerControls(pid)
@@ -522,6 +584,9 @@ function plateWars.OnPlayerDisconnectValidator(eventStatus, pid)
         plateWars.bomb.baseData.defusingPid = -1
     end
 
+    -- Leave team on disconnect (if member of any)
+    plateWars.teamLeave(pid)
+
     if plateWars.hasBomb(pid) then
         Players[pid].forceRemoveBomb = true
         plateWars.dropBomb(pid)
@@ -538,6 +603,23 @@ customEventHooks.registerValidator("OnObjectPlace",plateWars.OnObjectPlaceValida
 customEventHooks.registerValidator("OnPlayerDeath",plateWars.OnPlayerDeathValidator)
 customEventHooks.registerValidator("OnPlayerDisconnect",plateWars.OnPlayerDisconnectValidator)
 
-customCommandHooks.registerCommand("addBomb", plateWars.testAddPlayerBomb)
+--- TEST ---
+
+function plateWars.onTeamJoinBluePlates(pid, cmd)
+    plateWars.teamJoinBluePlates(pid)
+end
+
+function plateWars.onTeamJoinBrownPlates(pid, cmd)
+    plateWars.teamJoinBrownPlates(pid)
+    -- It's just a test this doesn't cover cases where player drops the bomb and the carrierPid is reset
+    if plateWars.bomb.baseData.carrierPid == -1 then
+        plateWars.teamAddBombRandom()
+    end
+end
+
+customCommandHooks.registerCommand("joinBlue", plateWars.onTeamJoinBluePlates)
+customCommandHooks.registerCommand("joinBrown", plateWars.onTeamJoinBrownPlates)
+
+--- TEST ---
 
 return plateWars
