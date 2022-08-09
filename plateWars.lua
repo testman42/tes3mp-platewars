@@ -7,18 +7,18 @@ OnObjectActivate for plant
     Position bomb based on site location
     start bomb timer
     play plate voiceline to everyone
-    
+
 plant Timer
     Message box/other voicelines?
     spawn sub timers
     brown team wins
     Push players away
     Apply damage
-    
+
 OnObjectActivate for defuse
     disable player controls while defuse?
     timer for defuse
-    
+
 defuse timer
     cancel plant timer
     blue team wins
@@ -122,7 +122,7 @@ plateWars.bomb.records[plateWars.bomb.refIds.worldObject] = {
     }
 }
 
-plateWars.bombSite = {}
+plateWars.bombSites = {}
 plateWars.bombSites.baseData = {}
 plateWars.bombSites.records = {}
 plateWars.bombSites.refIds = {}
@@ -200,7 +200,7 @@ plateWars.sounds.commands = {
     playGlobal = "PlaySoundVP "
 }
 
-plateWars.sound.records[plateWars.sounds.refIds.bluePlatesWin] = {
+plateWars.sounds.records[plateWars.sounds.refIds.bluePlatesWin] = {
     type = "sound",
     data = {
         sound = "Vo\\b\\m\\Hlo_BM017.mp3" --What a revolting display
@@ -240,8 +240,44 @@ function plateWars.bombPlayTickSound()
     logicHandler.RunConsoleCommandOnObjects(pid, bombTickSoundConsoleCommand, cellDescription, {bombIndex}, true)
 end
 
+function plateWars.bombForce(cellDescription, bombIndex)
+    for pid, player in pairs(Players) do
+        local bombPosX = LoadedCells[cellDescription].data.objectData[bombIndex].location.posX
+        local bombPosY = LoadedCells[cellDescription].data.objectData[bombIndex].location.posY
+        tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "bombposx: " .. tostring(bombPosX) .. " " .. "bombposY: " .. tostring(bombPosY))
+        local playerPosX = tes3mp.GetPosX(pid)
+        local playerPosY = tes3mp.GetPosY(pid)
+        local momentum_X = (bombPosX - playerPosX) * -1
+        local momentum_Y = (bombPosY - playerPosY) * -1
+        --------------------------------------------------
+        local momentum_Z = 500
+        local momentum_cap = 4000
+        local momentum_ceiling = 2000 --------------- add these to config maybe
+        local momentum_floor = 250
+        local momentum_controller = 8 -- multiply or divide x and y depending on distance from the bomb, probably needs more distance checks. can tweak and change later.
+        -------------------------------------------------
+        tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "momentumX: " .. tostring(momentum_X) .. " " .. "momentumY: " .. tostring(momentum_Y)  .. " " .. "momentumZ: " .. tostring(momentum_Z))
+        if momentum_X > momentum_cap or momentum_Y > momentum_cap or momentum_X < -momentum_cap or momentum_Y < -momentum_cap then
+            break
+        end
+        if momentum_X <= momentum_floor and momentum_X >= -momentum_floor or momentum_Y <= momentum_floor and momentum_Y >= -momentum_floor then
+            momentum_X = momentum_X * momentum_controller
+            momentum_Y = momentum_Y * momentum_controller
+
+        elseif momentum_X > momentum_ceiling or momentum_Y > momentum_ceiling or momentum_X < -momentum_ceiling or momentum_Y < -momentum_ceiling then
+            momentum_X = momentum_X / momentum_controller
+            momentum_Y = momentum_Y / momentum_controller
+        end
+        tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "momentumX: " .. tostring(momentum_X) .. " " .. "momentumY: " .. tostring(momentum_Y)  .. " " .. "momentumZ: " .. tostring(momentum_Z))
+        tes3mp.SetMomentum(pid, momentum_X, momentum_Y, momentum_Z)
+        tes3mp.SendMomentum(pid)
+
+    end
+end
+
 function plateWars.bombExplode(cellDescription, bombIndex)
     logicHandler.RunConsoleCommandOnObjects(tableHelper.getAnyValue(Players).pid, plateWars.bomb.commands.explode, cellDescription, {bombIndex}, true)
+    plateWars.bombForce(cellDescription, bombIndex)
 end
 ---- TEST FUNCTION, DELETE AFTER NO USE
 function plateWars.testAddPlayerBomb(pid, cmd)
@@ -255,7 +291,7 @@ function plateWars.onBombDefused(cellDescription, bombIndex)
     if plateWars.bomb.baseData.tickTimer ~= nil then
         tes3mp.StopTimer(plateWars.bomb.baseData.tickTimer)
     end
-    plateWars.announcement(color.Blue.."What a revolting display","de_s_bm_hello_17")
+    plateWars.announcement(color.Blue.."What a revolting display", plateWars.sounds.records[plateWars.sounds.refIds.bluePlatesWin].data.sound)
     logicHandler.DeleteObjectForEveryone(cellDescription, bombIndex)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix.."Bomb defused, blue team wins")
     --TODO: Handle round win for blue
@@ -277,8 +313,13 @@ end
 
 function plateWars.announcement(message, sound)
     --Just making the assumption that all players are in the game, can replace with teams if needed
-    if sound ~= nil then
-        plateWars.playSoundGlobal(tableHelper.getAnyValue(Players).pid, sound)
+    -- if sound ~= nil then
+    --     plateWars.playSoundGlobal(tableHelper.getAnyValue(Players).pid, sound)
+    -- end
+    for pid, player in pairs(Players) do
+        if sound ~= nil then
+            tes3mp.PlaySpeech(pid, sound)
+        end
     end
 
     for pid, player in pairs(Players) do
@@ -299,7 +340,7 @@ function plateWars.onBombExplode(cellDescription, bombIndex)
     plateWars.bombExplode(cellDescription, bombIndex)
     logicHandler.DeleteObjectForEveryone(cellDescription, bombIndex)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix.."Bomb exploded, brown team wins")
-    plateWars.announcement(color.Brown.."The blue plates are nice but the brown ones seem to last longer","de_s_bm_idle_2")
+    plateWars.announcement(color.Brown.."The blue plates are nice but the brown ones seem to last longer", plateWars.sounds.records[plateWars.sounds.refIds.brownPlatesWin].data.sound)
     --TODO: Handle round win for brown
 end
 
@@ -321,9 +362,9 @@ function plateWarsBombTimer(timeLeft, cellDescription, bombIndex)
             tes3mp.StartTimer(plateWars.bomb.baseData.tickTimer)
         else
             if timeLeft == 10 then
-                plateWars.announcement(color.Brown .. "Not Long Now", "de_s_bm_attack_7")
-            elseif timeLeft == defuseTime-1 then
-                plateWars.announcement(color.Brown .. "Run while you can", "de_s_bm_attack_15")
+                plateWars.announcement(color.Brown .. "Not Long Now", plateWars.sounds.records[plateWars.sounds.refIds.bombTenSecondsLeft].data.sound)
+            elseif timeLeft == plateWars.bomb.baseData.defuseTime-1 then
+                plateWars.announcement(color.Brown .. "Run while you can", plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime].data.sound)
             end
 
             plateWars.bomb.baseData.tickTimer = tes3mp.CreateTimerEx("plateWarsBombTimer", 1000*1, "iss", timeLeft-1, cellDescription, bombIndex)
@@ -352,7 +393,7 @@ function plateWarsPlantedTimer(pid, cellDescription, uniqueIndex, refId)
     plateWars.bomb.baseData.plantingPid = -1
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." finished planting the bomb at "..refId.."("..uniqueIndex..") in cell "..cellDescription)
     tes3mp.MessageBox(pid, -1, color.Green.."You finished planting the Plate Buster")
-    plateWars.announcement(color.Brown.."*Whistles*","de_s_bm_idle_6")
+    plateWars.announcement(color.Brown.."*Whistles*", plateWars.sounds.records[plateWars.sounds.refIds.bombPlanted].data.sound)
 
     plateWars.bomb.baseData.tickTimer = tes3mp.CreateTimerEx("plateWarsBombTimer",1000*plateWars.bomb.baseData.tickTimeIncrement, "iss", plateWars.bomb.baseData.tickTime-plateWars.bomb.baseData.tickTimeIncrement, cellDescription, bombIndex)
     tes3mp.StartTimer(plateWars.bomb.baseData.tickTimer)
@@ -365,7 +406,11 @@ function plateWarsDefusedTimer(pid, cellDescription, uniqueIndex)
 end
 
 function plateWars.hasBomb(pid)
-    return plateWars.bomb.baseData.carrierPid == pid
+    -- return plateWars.bomb.baseData.carrierPid == pid
+    if inventoryHelper.containsItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem) then
+        return true
+    end
+    return false
 end
 
 function plateWars.removeBomb(pid)
@@ -382,7 +427,7 @@ function plateWars.dropBomb(pid)
     }
     --drop bomb above player's corpse
     location.posZ = location.posZ + 15
-    
+
     plateWars.removeBomb(pid)
     logicHandler.CreateObjectAtLocation(cell, location, {refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}, "place")
 end
@@ -408,7 +453,7 @@ function plateWars.handleDefuse(pid, cellDescription, object)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." started defusing the bomb: "..object.uniqueIndex.." in cell "..cellDescription)
         tes3mp.MessageBox(pid, -1, color.Green.."You have begun defusing the Plate Buster")
     end
-    
+
 end
 
 function plateWars.handlePlant(pid, cellDescription, object)
