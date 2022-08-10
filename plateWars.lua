@@ -29,6 +29,9 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
+plateWars.config = {}
+plateWars.config.freezeTime = 15
+
 plateWars.teams = {}
 plateWars.teams.baseData = {}
 plateWars.teams.bluePlatesPids = {}
@@ -36,6 +39,8 @@ plateWars.teams.brownPlatesPids = {}
 
 plateWars.teams.baseData = {
     maxPlayersPerTeam = 3,
+    bluePlatesSpawnPoint = {-22598, -15301, 505},
+    brownPlatesSpawnPoint = {-23598, -16301, 505}
 }
 
 plateWars.bomb = {}
@@ -258,6 +263,67 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime] = {
         sound = "Vo\\b\\m\\Atk_BM015.mp3" --Run while you can
     }
 }
+
+function plateWars.startMatch()
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match started")
+    plateWars.sortPlayersIntoTeams()
+    plateWars.spawnTeams()
+    plateWars.startFreezeTime()
+    
+end
+
+function plateWars.endMatch()
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ended")
+end
+
+function plateWars.sortPlayersIntoTeams()
+    -- add player to brown team only when blue team has more players
+    for pid, player in pairs(Players) do
+        if #plateWars.teams.bluePlatesPids > #plateWars.teams.brownPlatesPids then
+            plateWars.teamJoinBrownPlates(pid)
+        else
+            plateWars.teamJoinBluePlates(pid)
+            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to brown team")
+        end
+    end
+end
+
+function plateWars.spawnTeams()
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Spawning players")
+    for pid, player in pairs(Players) do
+        if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
+            plateWars.spawnPlayer(pid)
+        end
+    end
+end
+
+function plateWars.spawnPlayer(pid)
+    if plateWars.teamIsBluePlate(pid) then
+        tes3mp.SetPos(pid, plateWars.teams.baseData.bluePlatesSpawnPoint[1], plateWars.teams.baseData.bluePlatesSpawnPoint[2], plateWars.teams.baseData.bluePlatesSpawnPoint[3])
+    else
+        tes3mp.SetPos(pid, plateWars.teams.baseData.brownPlatesSpawnPoint[2], plateWars.teams.baseData.brownPlatesSpawnPoint[2], plateWars.teams.baseData.brownPlatesSpawnPoint[3])
+    end
+    tes3mp.SendCell(pid)
+    tes3mp.SendPos(pid)
+end
+
+function plateWars.startFreezeTime()
+    freezeTimer = tes3mp.CreateTimerEx("endFreezeTime", time.seconds(plateWars.config.freezeTime), "i", 1)
+    tes3mp.StartTimer(freezeTimer)
+    for pid, player in pairs(Players) do
+        if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
+            plateWars.disablePlayerControls(pid)
+        end
+    end
+end
+
+function endFreezeTime()
+    for pid, player in pairs(Players) do
+        if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
+            plateWars.enablePlayerControls(pid)
+        end
+    end
+end
 
 --TODO add message informing player of failed/successful join
 function plateWars.teamJoin(pid, teamPidsTable)
@@ -550,6 +616,7 @@ function plateWars.OnServerPostInitHandler()
         local record = plateWars.sounds.records[refId]
         RecordStores[record.type].data.permanentRecords[refId] = tableHelper.deepCopy(record.data)
     end
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Script running")
 end
 
 function plateWars.OnPlayerDeathValidator(eventStatus, pid)
@@ -617,8 +684,13 @@ function plateWars.onTeamJoinBrownPlates(pid, cmd)
     end
 end
 
+function plateWars.testStartMatch(pid, cmd)
+    plateWars.teamJoinBluePlates(pid)
+end
+
 customCommandHooks.registerCommand("joinBlue", plateWars.onTeamJoinBluePlates)
 customCommandHooks.registerCommand("joinBrown", plateWars.onTeamJoinBrownPlates)
+customCommandHooks.registerCommand("startmatch", plateWars.startMatch)
 
 --- TEST ---
 
