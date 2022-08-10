@@ -282,12 +282,21 @@ function plateWars.teamLeave(pid)
     elseif plateWars.teamIsBrownPlate(pid) then
         tableHelper.removeValue(plateWars.teams.brownPlatesPids, pid)
     end
+<<<<<<< HEAD
 end
 
 function plateWars.teamIsBluePlate(pid)
     return tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid)
 end
 
+=======
+end
+
+function plateWars.teamIsBluePlate(pid)
+    return tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid)
+end
+
+>>>>>>> cf7dac1b3e255be67469f2576c4296a361971d6f
 function plateWars.teamIsBrownPlate(pid)
     return tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid)
 end
