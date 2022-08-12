@@ -29,8 +29,13 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
+matchID = nil
+roundID = nil
+roundcounter = 0
+
 plateWars.config = {}
-plateWars.config.freezeTime = 15
+plateWars.config.roundsPerMatch = 5
+plateWars.config.freezeTime = 5
 
 plateWars.teams = {}
 plateWars.teams.baseData = {}
@@ -266,15 +271,35 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime] = {
 
 function plateWars.startMatch()
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match started")
+    matchID = "m" .. tostring(os.time())
     plateWars.sortPlayersIntoTeams()
-    plateWars.spawnTeams()
-    plateWars.startFreezeTime()
-    
+    plateWars.startRound()
 end
 
 function plateWars.endMatch()
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ended")
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match " .. matchID .. " has ended")
+    matchID = nil
+    roundcounter = 0
 end
+
+function plateWars.startRound()
+    roundID = "r" .. tostring(os.time())
+    roundcounter = roundcounter + 1
+    plateWars.spawnTeams()
+    plateWars.startFreezeTime()
+    plateWars.teamAddBombRandom()
+end
+
+function plateWars.endRound()
+  --roundID = nil
+  if roundcounter < plateWars.config.roundsPerMatch then
+    plateWars.startRound()
+  else
+    plateWars.endMatch()
+  end
+end
+
+
 
 function plateWars.sortPlayersIntoTeams()
     -- add player to brown team only when blue team has more players
@@ -433,6 +458,7 @@ function plateWars.onBombExplode(cellDescription, bombIndex)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Bomb exploded, brown team wins")
     plateWars.announcement(color.Brown .. "The blue plates are nice but the brown ones seem to last longer", plateWars.sounds.refIds.brownPlatesWin)
     --TODO: Handle round win for brown
+    plateWars.endRound()
 end
 
 function plateWars.getBombPos(sitePos, offset)
@@ -686,11 +712,18 @@ end
 
 function plateWars.testStartMatch(pid, cmd)
     plateWars.teamJoinBluePlates(pid)
+    plateWars.bomb.baseData.carrierPid = pid
+end
+
+function plateWars.forceCarrierPid(pid, cmd)
+  plateWars.bomb.baseData.carrierPid = pid
 end
 
 customCommandHooks.registerCommand("joinBlue", plateWars.onTeamJoinBluePlates)
 customCommandHooks.registerCommand("joinBrown", plateWars.onTeamJoinBrownPlates)
 customCommandHooks.registerCommand("startmatch", plateWars.startMatch)
+customCommandHooks.registerCommand("forcecarrierpid", plateWars.forceCarrierPid)
+
 
 --- TEST ---
 
