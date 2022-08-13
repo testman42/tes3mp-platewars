@@ -29,26 +29,61 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
-matchID = nil
-roundID = nil
-roundcounter = 0
-
-plateWars.config = {}
-plateWars.config.roundsPerMatch = 5
-plateWars.config.freezeTime = 5
-
-plateWars.teams = {}
-plateWars.teams.baseData = {}
-plateWars.teams.bluePlatesPids = {}
-plateWars.teams.brownPlatesPids = {}
-
-plateWars.teams.baseData = {
-    maxPlayersPerTeam = 3,
+-- Map should have property isExterior or isInterior because exteriors need to be handled differently than interiors for which we can create instanced cells
+plateWars.maps = {}
+plateWars.maps["Balmora"] = {
+    -- placeholder, change to cellDescription related to the spawn point coordinates
+    cellDescription = "-3, -2",
     bluePlatesSpawnPoint = {-22598, -15301, 505},
     brownPlatesSpawnPoint = {-23598, -16301, 505}
 }
 
+plateWars.matches = {}
+plateWars.matches = {
+    currentMatchId = 0,
+    instances = {}
+}
+
+plateWars.match = {}
+plateWars.match.baseConfig = {}
+plateWars.match.baseData = {}
+plateWars.match.round = {}
+plateWars.match.round.baseData = {}
+
+plateWars.match.baseConfig = {
+    freezeTime = 5,
+    roundsPerMatch = 5
+}
+
+plateWars.match.baseData = {
+    bomb = {},
+    bombSites = {},
+    rounds = {},
+    teams = {},
+    mapName = nil
+}
+
+-- THIS IS A ROUND TEMPLATE
+-- We can keep statistics per round here, like kills, assists
+plateWars.match.round.baseData = {
+
+}
+
+plateWars.teams = {}
+plateWars.teams.baseData = {}
+plateWars.teams.config = {}
+
+plateWars.teams.baseData = {
+    bluePlatesPids = {},
+    brownPlatesPids = {}
+}
+
+plateWars.teams.config = {
+    maxPlayersPerTeam = 3
+}
+
 plateWars.bomb = {}
+plateWars.bomb.baseConfig = {}
 plateWars.bomb.baseData = {}
 plateWars.bomb.commands = {}
 plateWars.bomb.config = {}
@@ -61,17 +96,20 @@ plateWars.bomb.refIds = {
     worldObject = "de_bomb_01"
 }
 
-plateWars.bomb.baseData = {
+plateWars.bomb.baseConfig = {
+    defuseTime = 3,
     plantTime = 3,
-    defuseTime = 8,
     tickTime = 45,
-    tickTimeIncrement = 5,
-    tickTimer = nil,
-    plantTimer = nil,
+    tickTimeIncrement = 5
+}
+
+plateWars.bomb.baseData = {
     defuseTimer = nil,
-    plantingPid = -1,
+    plantTimer = nil,
+    tickTimer = nil,
+    carryingPid = -1,
     defusingPid = -1,
-    carrierPid = -1
+    plantingPid = -1,
 }
 
 plateWars.bomb.commands = {
@@ -269,39 +307,82 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime] = {
     }
 }
 
-function plateWars.startMatch()
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match started")
-    matchID = "m" .. tostring(os.time())
-    plateWars.sortPlayersIntoTeams()
-    plateWars.startRound()
+function plateWars.matchesIncrementId()
+    plateWars.matches.currentMatchId = plateWars.matches.currentMatchId + 1
 end
 
-function plateWars.endMatch()
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match " .. matchID .. " has ended")
-    matchID = nil
-    roundcounter = 0
+function plateWars.matchesGetMatch(matchId)
+    return plateWars.matches.instances[matchId]
 end
 
-function plateWars.startRound()
-    roundID = "r" .. tostring(os.time())
-    roundcounter = roundcounter + 1
+function plateWars.matchesCreateMatch(mapName)
+    plateWars.matchesIncrementId()
+
+    local matchId = plateWars.matches.currentMatchId
+    plateWars.matches.instances[matchId] = {}
+
+    local match = plateWars.matchesGetMatch(matchId)
+
+    match.config = tableHelper.deepCopy(plateWars.match.baseConfig)
+
+    match.data = tableHelper.deepCopy(plateWars.match.baseData)
+
+    match.data.bomb = tableHelper.deepCopy(plateWars.bomb.baseData)
+
+    match.data.bombSites = tableHelper.deepCopy(plateWars.bombSites.baseData)
+
+    match.data.teams = tableHelper.deepCopy(plateWars.teams.baseData)
+
+    if mapName == nil then
+        -- Implement random map choice
+        mapName = "Balmora"
+    end
+
+    match.data.mapName = mapName
+
+    return matchId
+end
+
+function plateWars.matchesDestroyMatch(matchId)
+    plateWars.matches.instances[matchId] = nil
+end
+
+function plateWars.matchesStartMatch(matchId)
+    local match = plateWars.matchesGetMatch(matchId)
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ID " .. tostring(matchId) .. " has started.")
+    plateWars.matchesSortPlayersIntoTeams(match)
+    plateWars.startRound(match)
+end
+
+function plateWars.matchesEndMatch(matchId)
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ID " .. tostring(matchID) .. " has ended.")
+    -- Do the logic of showing end scoreboard or something like that
+    -- Remove players from the map, do other related stuff to match end
+    -- Finally destroy the match entry
+    plateWars.matchesDestroyMatch(matchId)
+end
+
+function plateWars.matchesStartRound(match)
+    -- Initiate new round data
+    table.insert(match.data.rounds, plateWars.match.round.baseData)
+
     plateWars.spawnTeams()
     plateWars.startFreezeTime()
     plateWars.teamAddBombRandom()
 end
 
-function plateWars.endRound()
+function plateWars.matchesEndRound(matchId)
   --roundID = nil
-  if roundcounter < plateWars.config.roundsPerMatch then
-    plateWars.startRound()
+  local match = plateWars.matchesGetMatch(matchId)
+  local roundCount = match.rounds
+  if roundCount < plateWars.match then
+    plateWars.startRound(match)
   else
-    plateWars.endMatch()
+    plateWars.endMatch(matchId)
   end
 end
 
-
-
-function plateWars.sortPlayersIntoTeams()
+function plateWars.matchesSortPlayersIntoTeams(match)
     -- add player to brown team only when blue team has more players
     for pid, player in pairs(Players) do
         if #plateWars.teams.bluePlatesPids > #plateWars.teams.brownPlatesPids then
@@ -313,26 +394,50 @@ function plateWars.sortPlayersIntoTeams()
     end
 end
 
-function plateWars.spawnTeams()
+function plateWars.matchesSpawnTeams(matchId)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Spawning players")
-    for pid, player in pairs(Players) do
+
+    local match = plateWars.matchesGetMatch(matchId)
+
+    for _, pid in ipairs(match.data.teams.bluePlatesPids) do
         if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
-            plateWars.spawnPlayer(pid)
+            plateWars.matchesSpawnBluePlate(match, pid)
         end
     end
+
+    for _, pid in ipairs(match.data.teams.brownPlatesPids) do
+        if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
+            plateWars.matchesSpawnBrownPlate(match, pid)
+        end
+    end
+
+    -- TODO handle players that have disconnected, so that the match can be paused while waiting for the pid to reconnect
 end
 
-function plateWars.spawnPlayer(pid)
-    if plateWars.teamIsBluePlate(pid) then
-        tes3mp.SetPos(pid, plateWars.teams.baseData.bluePlatesSpawnPoint[1], plateWars.teams.baseData.bluePlatesSpawnPoint[2], plateWars.teams.baseData.bluePlatesSpawnPoint[3])
-    else
-        tes3mp.SetPos(pid, plateWars.teams.baseData.brownPlatesSpawnPoint[2], plateWars.teams.baseData.brownPlatesSpawnPoint[2], plateWars.teams.baseData.brownPlatesSpawnPoint[3])
-    end
+function plateWars.matchesSpawnBluePlate(match, pid)
+    local map = plateWars.maps[match.data.map]
+
+    tes3mp.SetCell(pid, map.cell)
+    tes3mp.SetPos(pid, map.bluePlatesSpawnPoint[1], map.bluePlatesSpawnPoint[2], map.bluePlatesSpawnPoint[3])
+
     tes3mp.SendCell(pid)
     tes3mp.SendPos(pid)
 end
 
-function plateWars.startFreezeTime()
+function plateWars.matchesSpawnBrownPlate(match, pid)
+    local map = plateWars.maps[match.data.map]
+
+    tes3mp.SetCell(pid, map.cell)
+    tes3mp.SetPos(pid, map.brownPlatesSpawnPoint[1], map.brownPlatesSpawnPoint[2], map.brownPlatesSpawnPoint[3])
+
+    tes3mp.SendCell(pid)
+    tes3mp.SendPos(pid)
+end
+
+-- Freeze time should react to player's disconnecting
+-- If player disconnects prepare a timeout timer that will be started after the round has ended
+-- If player manages to reconnect prior to the round end, destroy the timeout timer
+function plateWars.matchesStartFreezeTime()
     freezeTimer = tes3mp.CreateTimerEx("endFreezeTime", time.seconds(plateWars.config.freezeTime), "i", 1)
     tes3mp.StartTimer(freezeTimer)
     for pid, player in pairs(Players) do
