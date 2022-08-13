@@ -322,9 +322,10 @@ function plateWars.sortPlayersIntoTeams()
     for pid, player in pairs(Players) do
         if #plateWars.teams.bluePlatesPids > #plateWars.teams.brownPlatesPids then
             plateWars.teamJoinBrownPlates(pid)
+            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to brown team")
         else
             plateWars.teamJoinBluePlates(pid)
-            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to brown team")
+            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to blue team")
         end
     end
 end
@@ -338,15 +339,23 @@ function plateWars.spawnTeams()
     end
 end
 
+function plateWars.getTeamIndex(pid)
+    if plateWars.teamIsBluePlate(pid) then
+        teamIndex = 1
+    else
+        teamIndex = 2
+    end
+
+    return teamIndex
+end
+
 function plateWars.spawnPlayer(pid)
-    plateWars.teamIsBluePlate(pid)
-    plateWars.teamIsBrownPlate(pid)
     math.random(1, 7) -- Improves RNG? LUA's random isn't great
     math.random(1, 7)
     local randomLocationIndex = math.random(1, 7)
     local possibleSpawnLocations = {}
-    possibleSpawnLocations = currentMatch.teamSpawnLocations[teamIndex]
-    tes3mp.LogMessage(2, "++++ Spawning player at team ".. teamIndex .. " spawnpoint #" .. randomLocationIndex .. " ++++")
+    possibleSpawnLocations = currentMatch.teamSpawnLocations[plateWars.getTeamIndex(pid)]
+    tes3mp.LogMessage(2, "++++ Spawning player at team ".. plateWars.getTeamIndex(pid) .. " spawnpoint #" .. randomLocationIndex .. " ++++")
     -- if plateWars.teamIsBluePlate(pid) then
     --     plateWars.equipUniforms(pid)
     --     tes3mp.SetPos(pid, plateWars.teams.baseData.bluePlatesSpawnPoint[1], plateWars.teams.baseData.bluePlatesSpawnPoint[2], plateWars.teams.baseData.bluePlatesSpawnPoint[3])
@@ -368,12 +377,12 @@ end
 function plateWars.equipUniforms(pid)
     local race = string.lower(Players[pid].data.character.race)
     if race ~= "argonian" and race ~= "khajiit" then
-        Players[pid].data.equipment[7] = { refId = plateWars.teams.uniforms[teamIndex][3], count = 1, charge = -1 }
+        Players[pid].data.equipment[7] = { refId = plateWars.teams.uniforms[plateWars.getTeamIndex(pid)][3], count = 1, charge = -1 }
     end
       -- give shirt
-    Players[pid].data.equipment[8] = { refId = plateWars.teams.uniforms[teamIndex][1], count = 1, charge = -1 }
+    Players[pid].data.equipment[8] = { refId = plateWars.teams.uniforms[plateWars.getTeamIndex(pid)][1], count = 1, charge = -1 }
       --give pants
-    Players[pid].data.equipment[9] = { refId = plateWars.teams.uniforms[teamIndex][2], count = 1, charge = -1 }
+    Players[pid].data.equipment[9] = { refId = plateWars.teams.uniforms[plateWars.getTeamIndex(pid)][2], count = 1, charge = -1 }
 end
 
 function plateWars.LoadPlayerItems(pid)
@@ -426,12 +435,10 @@ function plateWars.teamLeave(pid)
 end
 
 function plateWars.teamIsBluePlate(pid)
-    teamIndex = 1
     return tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid)
 end
 
 function plateWars.teamIsBrownPlate(pid)
-    teamIndex = 2
     return tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid)
 end
 
