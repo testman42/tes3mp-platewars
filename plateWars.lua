@@ -29,43 +29,61 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
-platewarsMaps = require("custom/plateWars/platewarsMaps")
-
-matchID = nil
-roundID = nil
-roundcounter = 0
--- used to track the score for each team
-teamScores = nil
--- used to track the number of players on each team
-teamCounters = nil
--- used to hold data about the next match
-nextMatch = nil
--- unique identifier for match
-matchId = nil
--- holds the list of all match-specific variables
-matchSettings = nil
-teamIndex = nil
-currentMatch = platewarsMaps.balmora
-
-
-plateWars.config = {}
-plateWars.config.roundsPerMatch = 5
-plateWars.config.freezeTime = 5
-
-plateWars.teams = {}
-plateWars.teams.baseData = {}
-plateWars.teams.bluePlatesPids = {}
-plateWars.teams.brownPlatesPids = {}
-
-plateWars.teams.uniforms = {{"expensive_shirt_02", "expensive_pants_02", "expensive_shoes_02"}, {"expensive_shirt_01", "expensive_pants_01", "expensive_shoes_01"}}
-
-plateWars.teams.baseData = {
-    maxPlayersPerTeam = 3,
+-- Map should have property isExterior or isInterior because exteriors need to be handled differently than interiors for which we can create instanced cells
+plateWars.maps = {}
+plateWars.maps["Balmora"] = {
+    -- placeholder, change to cellDescription related to the spawn point coordinates
+    cellDescription = "-3, -2",
     bluePlatesSpawnPoint = {-22598, -15301, 505},
     brownPlatesSpawnPoint = {-23598, -16301, 505}
 }
 
+plateWars.matches = {}
+plateWars.matches = {
+    currentMatchId = 0,
+    instances = {}
+}
+
+plateWars.match = {}
+plateWars.match.baseConfig = {}
+plateWars.match.baseData = {}
+plateWars.match.round = {}
+plateWars.match.round.baseData = {}
+
+plateWars.match.baseConfig = {
+    freezeTime = 5,
+    roundsPerMatch = 5
+}
+
+plateWars.match.baseData = {
+    bomb = {},
+    bombSites = {},
+    rounds = {},
+    teams = {},
+    mapName = nil
+}
+
+-- THIS IS A ROUND TEMPLATE
+-- We can keep statistics per round here, like kills, assists
+plateWars.match.round.baseData = {
+
+}
+
+plateWars.teams = {}
+plateWars.teams.baseData = {}
+plateWars.teams.config = {}
+
+plateWars.teams.baseData = {
+    bluePlatesPids = {},
+    brownPlatesPids = {}
+}
+
+plateWars.teams.config = {
+    maxPlayersPerTeam = 3
+}
+
 plateWars.bomb = {}
+plateWars.bomb.baseConfig = {}
 plateWars.bomb.baseData = {}
 plateWars.bomb.commands = {}
 plateWars.bomb.config = {}
@@ -78,17 +96,20 @@ plateWars.bomb.refIds = {
     worldObject = "de_bomb_01"
 }
 
-plateWars.bomb.baseData = {
+plateWars.bomb.baseConfig = {
+    defuseTime = 3,
     plantTime = 3,
-    defuseTime = 8,
     tickTime = 45,
-    tickTimeIncrement = 5,
-    tickTimer = nil,
-    plantTimer = nil,
+    tickTimeIncrement = 5
+}
+
+plateWars.bomb.baseData = {
     defuseTimer = nil,
-    plantingPid = -1,
+    plantTimer = nil,
+    tickTimer = nil,
+    carryingPid = -1,
     defusingPid = -1,
-    carrierPid = -1
+    plantingPid = -1,
 }
 
 plateWars.bomb.commands = {
@@ -286,113 +307,138 @@ plateWars.sounds.records[plateWars.sounds.refIds.bombNoDefuseTime] = {
     }
 }
 
-function plateWars.startMatch()
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match started")
-    matchID = "m" .. tostring(os.time())
-    plateWars.sortPlayersIntoTeams()
-    plateWars.startRound()
+function plateWars.matchesIncrementId()
+    plateWars.matches.currentMatchId = plateWars.matches.currentMatchId + 1
 end
 
-function plateWars.endMatch()
-    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match " .. matchID .. " has ended")
-    matchID = nil
-    roundcounter = 0
+function plateWars.matchesGetMatch(matchId)
+    return plateWars.matches.instances[matchId]
 end
 
-function plateWars.startRound()
-    roundID = "r" .. tostring(os.time())
-    roundcounter = roundcounter + 1
-    plateWars.spawnTeams()
-    plateWars.startFreezeTime()
+function plateWars.matchesCreateMatch(mapName)
+    plateWars.matchesIncrementId()
+
+    local matchId = plateWars.matches.currentMatchId
+    plateWars.matches.instances[matchId] = {"the_match"}
+
+    local match = plateWars.matchesGetMatch(matchId)
+
+    match.config = tableHelper.deepCopy(plateWars.match.baseConfig)
+
+    match.data = tableHelper.deepCopy(plateWars.match.baseData)
+
+    match.data.bomb = tableHelper.deepCopy(plateWars.bomb.baseData)
+
+    match.data.bombSites = tableHelper.deepCopy(plateWars.bombSites.baseData)
+
+    match.data.teams = tableHelper.deepCopy(plateWars.teams.baseData)
+
+    if mapName == nil then
+        -- Implement random map choice
+        mapName = "Balmora"
+    end
+
+    match.data.mapName = mapName
+
+    return matchId
+end
+
+function plateWars.matchesDestroyMatch(matchId)
+    plateWars.matches.instances[matchId] = nil
+end
+
+function plateWars.matchesStartMatch(matchId)
+    local match = plateWars.matchesGetMatch(matchId)
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ID " .. tostring(matchId) .. " has started.")
+    plateWars.matchesSortPlayersIntoTeams(match)
+    plateWars.matchesStartRound(match)
+end
+
+function plateWars.matchesEndMatch(matchId)
+    tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ID " .. tostring(matchID) .. " has ended.")
+    -- Do the logic of showing end scoreboard or something like that
+    -- Remove players from the map, do other related stuff to match end
+    -- Finally destroy the match entry
+    plateWars.matchesDestroyMatch(matchId)
+end
+
+function plateWars.matchesStartRound(match)
+    -- Initiate new round data
+    table.insert(match.data.rounds, plateWars.match.round.baseData)
+
+    plateWars.matchesSpawnTeams(plateWars.matches.currentMatchId)
+    plateWars.matchesStartFreezeTime()
     plateWars.teamAddBombRandom()
 end
 
-function plateWars.endRound()
+function plateWars.matchesEndRound(matchId)
   --roundID = nil
-  if roundcounter < plateWars.config.roundsPerMatch then
-    plateWars.startRound()
+  local match = plateWars.matchesGetMatch(matchId)
+  local roundCount = match.rounds
+  if roundCount < plateWars.match then
+    plateWars.matchesStartRound(match)
   else
-    plateWars.endMatch()
+    plateWars.endMatch(matchId)
   end
 end
 
-
-function plateWars.sortPlayersIntoTeams()
+function plateWars.matchesSortPlayersIntoTeams(match)
     -- add player to brown team only when blue team has more players
     for pid, player in pairs(Players) do
-        if #plateWars.teams.bluePlatesPids > #plateWars.teams.brownPlatesPids then
+        if #plateWars.teams.baseData.bluePlatesPids > #plateWars.teams.baseData.brownPlatesPids then
             plateWars.teamJoinBrownPlates(pid)
-            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to brown team")
         else
             plateWars.teamJoinBluePlates(pid)
-            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to blue team")
+            tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to brown team")
         end
     end
 end
 
-function plateWars.spawnTeams()
+function plateWars.matchesSpawnTeams(matchId)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Spawning players")
-    for pid, player in pairs(Players) do
+
+    local match = plateWars.matchesGetMatch(matchId)
+
+    for _, pid in ipairs(match.data.teams.bluePlatesPids) do
         if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
-            plateWars.spawnPlayer(pid)
+            plateWars.matchesSpawnBluePlate(match, pid)
         end
     end
-end
 
-function plateWars.getTeamIndex(pid)
-    if plateWars.teamIsBluePlate(pid) then
-        teamIndex = 1
-    else
-        teamIndex = 2
+    for _, pid in ipairs(match.data.teams.brownPlatesPids) do
+        if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
+            plateWars.matchesSpawnBrownPlate(match, pid)
+        end
     end
 
-    return teamIndex
+    -- TODO handle players that have disconnected, so that the match can be paused while waiting for the pid to reconnect
 end
 
-function plateWars.spawnPlayer(pid)
-    math.random(1, 7) -- Improves RNG? LUA's random isn't great
-    math.random(1, 7)
-    local randomLocationIndex = math.random(1, 7)
-    local possibleSpawnLocations = {}
-    possibleSpawnLocations = currentMatch.teamSpawnLocations[plateWars.getTeamIndex(pid)]
-    tes3mp.LogMessage(2, "++++ Spawning player at team ".. plateWars.getTeamIndex(pid) .. " spawnpoint #" .. randomLocationIndex .. " ++++")
-    -- if plateWars.teamIsBluePlate(pid) then
-    --     plateWars.equipUniforms(pid)
-    --     tes3mp.SetPos(pid, plateWars.teams.baseData.bluePlatesSpawnPoint[1], plateWars.teams.baseData.bluePlatesSpawnPoint[2], plateWars.teams.baseData.bluePlatesSpawnPoint[3])
-    -- else
-    --     plateWars.equipUniforms(pid)
-    --     tes3mp.SetPos(pid, plateWars.teams.baseData.brownPlatesSpawnPoint[2], plateWars.teams.baseData.brownPlatesSpawnPoint[2], plateWars.teams.baseData.brownPlatesSpawnPoint[3])
-    -- end
-    plateWars.equipUniforms(pid)
-    tes3mp.SetCell(pid, possibleSpawnLocations[randomLocationIndex][1])
-  	tes3mp.SendCell(pid)
-  	tes3mp.SetPos(pid, possibleSpawnLocations[randomLocationIndex][2], possibleSpawnLocations[randomLocationIndex][3], possibleSpawnLocations[randomLocationIndex][4])
-  	tes3mp.SetRot(pid, 0, possibleSpawnLocations[randomLocationIndex][5])
-  	tes3mp.SendPos(pid)
-    -- tes3mp.SendCell(pid)
-    -- tes3mp.SendPos(pid)
-    -- plateWars.LoadPlayerItems(pid)
+function plateWars.matchesSpawnBluePlate(match, pid)
+    local map = plateWars.maps["Balmora"]
+
+    tes3mp.SetCell(pid, map.cellDescription)
+    tes3mp.SetPos(pid, map.bluePlatesSpawnPoint[1], map.bluePlatesSpawnPoint[2], map.bluePlatesSpawnPoint[3])
+
+    tes3mp.SendCell(pid)
+    tes3mp.SendPos(pid)
 end
 
-function plateWars.equipUniforms(pid)
-    local race = string.lower(Players[pid].data.character.race)
-    if race ~= "argonian" and race ~= "khajiit" then
-        Players[pid].data.equipment[7] = { refId = plateWars.teams.uniforms[plateWars.getTeamIndex(pid)][3], count = 1, charge = -1 }
-    end
-      -- give shirt
-    Players[pid].data.equipment[8] = { refId = plateWars.teams.uniforms[plateWars.getTeamIndex(pid)][1], count = 1, charge = -1 }
-      --give pants
-    Players[pid].data.equipment[9] = { refId = plateWars.teams.uniforms[plateWars.getTeamIndex(pid)][2], count = 1, charge = -1 }
+function plateWars.matchesSpawnBrownPlate(match, pid)
+    local map = plateWars.maps["Balmora"]
+
+    tes3mp.SetCell(pid, map.cellDescription)
+    tes3mp.SetPos(pid, map.brownPlatesSpawnPoint[1], map.brownPlatesSpawnPoint[2], map.brownPlatesSpawnPoint[3])
+
+    tes3mp.SendCell(pid)
+    tes3mp.SendPos(pid)
 end
 
-function plateWars.LoadPlayerItems(pid)
-    Players[pid]:Save()
-	  Players[pid]:LoadInventory()
-	  Players[pid]:LoadEquipment()
-end
-
-function plateWars.startFreezeTime()
-    freezeTimer = tes3mp.CreateTimerEx("endFreezeTime", time.seconds(plateWars.config.freezeTime), "i", 1)
+-- Freeze time should react to player's disconnecting
+-- If player disconnects prepare a timeout timer that will be started after the round has ended
+-- If player manages to reconnect prior to the round end, destroy the timeout timer
+function plateWars.matchesStartFreezeTime()
+    freezeTimer = tes3mp.CreateTimerEx("endFreezeTime", time.seconds(plateWars.match.baseConfig.freezeTime), "i", 1)
     tes3mp.StartTimer(freezeTimer)
     for pid, player in pairs(Players) do
         if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
@@ -411,47 +457,47 @@ end
 
 --TODO add message informing player of failed/successful join
 function plateWars.teamJoin(pid, teamPidsTable)
-    if not tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid) and not tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid) then
-        if #teamPidsTable < plateWars.teams.baseData.maxPlayersPerTeam then
+    if not tableHelper.containsValue(plateWars.teams.baseData.bluePlatesPids, pid) and not tableHelper.containsValue(plateWars.teams.baseData.brownPlatesPids, pid) then
+        if #teamPidsTable < plateWars.teams.config.maxPlayersPerTeam then
             table.insert(teamPidsTable, pid)
         end
     end
 end
 
 function plateWars.teamJoinBluePlates(pid)
-    plateWars.teamJoin(pid, plateWars.teams.bluePlatesPids)
+    plateWars.teamJoin(pid, plateWars.teams.baseData.bluePlatesPids)
 end
 
 function plateWars.teamJoinBrownPlates(pid)
-    plateWars.teamJoin(pid, plateWars.teams.brownPlatesPids)
+    plateWars.teamJoin(pid, plateWars.teams.baseData.brownPlatesPids)
 end
 
 function plateWars.teamLeave(pid)
     if plateWars.teamIsBluePlate(pid) then
-        tableHelper.removeValue(plateWars.teams.bluePlatesPids, pid)
+        tableHelper.removeValue(plateWars.teams.baseData.bluePlatesPids, pid)
     elseif plateWars.teamIsBrownPlate(pid) then
-        tableHelper.removeValue(plateWars.teams.brownPlatesPids, pid)
+        tableHelper.removeValue(plateWars.teams.baseData.brownPlatesPids, pid)
     end
 end
 
 function plateWars.teamIsBluePlate(pid)
-    return tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid)
+    return tableHelper.containsValue(plateWars.teams.baseData.bluePlatesPids, pid)
 end
 
 function plateWars.teamIsBrownPlate(pid)
-    return tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid)
+    return tableHelper.containsValue(plateWars.teams.baseData.brownPlatesPids, pid)
 end
 
 function plateWars.teamAddBomb(pid)
     inventoryHelper.addItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}}, enumerations.inventory.ADD)
-    plateWars.bomb.baseData.carrierPid = pid
+    plateWars.bomb.baseData.carryingPid = pid
 end
 
 function plateWars.teamAddBombRandom()
     math.randomseed(os.time())
-    local randomIndex = math.random(#plateWars.teams.brownPlatesPids)
-    plateWars.teamAddBomb(plateWars.teams.brownPlatesPids[randomIndex])
+    local randomIndex = math.random(#plateWars.teams.baseData.brownPlatesPids)
+    plateWars.teamAddBomb(plateWars.teams.baseData.brownPlatesPids[randomIndex])
 end
 
 function plateWars.bombPlayTickSound(cellDescription, bombIndex)
@@ -583,13 +629,13 @@ function plateWarsDefusedTimer(pid, cellDescription, uniqueIndex)
 end
 
 function plateWars.hasBomb(pid)
-    return  plateWars.bomb.baseData.carrierPid == pid
+    return  plateWars.bomb.baseData.carryingPid == pid
 end
 
 function plateWars.removeBomb(pid)
     inventoryHelper.removeItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.REMOVE)
-    plateWars.bomb.baseData.carrierPid = -1
+    plateWars.bomb.baseData.carryingPid = -1
 end
 
 function plateWars.dropBomb(pid)
@@ -704,46 +750,7 @@ function plateWars.OnServerPostInitHandler()
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Script running")
 end
 
-function plateWars.OnDeathTimeExpirationHandler(eventStatus, pid)
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "top of OnDeathTimeExpiration")
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "OnDeathTimeExpiration pid: " .. pid)
-    -- figure out why this isn't true
-    if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
-        tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "in the if")
-		    tes3mp.LogMessage(2, "++++ Respawning pid: ", pid)
-		    tes3mp.Resurrect(pid, 0)
-        -- plateWars.startMatch()
-    end
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "bottom of OnDeathTimeExpiration")
-end
-
-function plateWars.OnPlayerDeathHandler(eventStatus, pid)
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "onplayerdeath pid: " .. pid)
-    -- Players[pid].data.mwTDM.status = 0	-- Player is dead and not safe for teleporting
-    -- Players[pid].data.mwTDM.deaths = Players[pid].data.mwTDM.deaths + 1
-    -- Players[pid].data.mwTDM.totalDeaths = Players[pid].data.mwTDM.totalDeaths + 1
-    -- Players[pid].data.mwTDM.spree = 0
-
-    if config.bountyResetOnDeath then
-        tes3mp.SetBounty(pid, 0)
-        tes3mp.SendBounty(pid)
-        Players[pid]:SaveBounty()
-    end
-
-    local deathReason = tes3mp.GetDeathReason(pid)
-    if tes3mp.DoesPlayerHavePlayerKiller(pid) then
-        local killerpid = tes3mp.GetPlayerKillerPid(pid)
-        tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "inside OnPlayerDeathHandler: " .. tostring(killerpid))
-        tes3mp.SetBounty(killerpid, 0)
-        tes3mp.SendBounty(killerpid)
-        Players[killerpid]:SaveBounty()
-        inventoryHelper.addItem(Players[killerpid].data.inventory, "Gold_001", 1, -1, -1, "")
-        Players[killerpid]:LoadItemChanges({{refId = "Gold_001", count = 1, charge = -1, enchantmentCharge = -1, soul = ""}}, enumerations.inventory.ADD)
-        -- playerPacket = packetReader.GetPlayerPacketTables(killerpid, "PlayerInventory")
-        -- Players[killerpid]:SaveInventory(playerPacket)
-
-    end
-
+function plateWars.OnPlayerDeathValidator(eventStatus, pid)
     if pid == plateWars.bomb.baseData.plantingPid then
         tes3mp.StopTimer(plateWars.bomb.baseData.plantTimer)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." stopped planting because they died")
@@ -762,13 +769,6 @@ function plateWars.OnPlayerDeathHandler(eventStatus, pid)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." dropped the bomb because they died")
         Players[pid].forceRemoveBomb = nil
     end
-
-    tes3mp.SendMessage(pid, color.Yellow .. "Respawning in " .. "5" .. " seconds...\n", false)
-  	timer = tes3mp.CreateTimerEx("OnDeathTimeExpiration", time.seconds(5), "is", pid, tes3mp.GetName(pid))
-  	tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "timer was created...")
-
-  	tes3mp.StartTimer(timer)
-  	tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "timer was started...")
 end
 
 function plateWars.OnPlayerDisconnectValidator(eventStatus, pid)
@@ -791,24 +791,14 @@ function plateWars.OnPlayerDisconnectValidator(eventStatus, pid)
         tes3mp.LogMessage(enumerations.log.INFO, logPrefix..logicHandler.GetChatName(pid).." dropped the bomb because they disconnected")
         Players[pid].forceRemoveBomb = nil
     end
-
-    -- Players[pid]:QuicksaveToDrive()
 end
 
 customEventHooks.registerHandler("OnServerPostInit",plateWars.OnServerPostInitHandler)
 customEventHooks.registerHandler("OnObjectActivate",plateWars.OnObjectActivateHandler)
-customEventHooks.registerHandler("OnDeathTimeExpiration", plateWars.OnDeathTimeExpirationHandler)
-customEventHooks.registerHandler("OnPlayerDeath", plateWars.OnPlayerDeathHandler)
 
 customEventHooks.registerValidator("OnPlayerInventory",plateWars.OnPlayerInventoryValidator)
 customEventHooks.registerValidator("OnObjectPlace",plateWars.OnObjectPlaceValidator)
-customEventHooks.registerValidator("OnPlayerDeath", function(eventStatus, pid)
-	-- this makes it so that default resurrect for player does not happen but custom handler for player death does get executed
-	return customEventHooks.makeEventStatus(false,true)
-end)
-customEventHooks.registerValidator("OnDeathTimeExpiration", function(eventStatus, pid)
-	 return customEventHooks.makeEventStatus(false,true)
-end)
+customEventHooks.registerValidator("OnPlayerDeath",plateWars.OnPlayerDeathValidator)
 customEventHooks.registerValidator("OnPlayerDisconnect",plateWars.OnPlayerDisconnectValidator)
 
 --- TEST ---
@@ -819,25 +809,26 @@ end
 
 function plateWars.onTeamJoinBrownPlates(pid, cmd)
     plateWars.teamJoinBrownPlates(pid)
-    -- It's just a test this doesn't cover cases where player drops the bomb and the carrierPid is reset
-    if plateWars.bomb.baseData.carrierPid == -1 then
+    -- It's just a test this doesn't cover cases where player drops the bomb and the carryingPid is reset
+    if plateWars.bomb.baseData.carryingPid == -1 then
         plateWars.teamAddBombRandom()
     end
 end
 
 function plateWars.testStartMatch(pid, cmd)
-    plateWars.teamJoinBluePlates(pid)
-    plateWars.bomb.baseData.carrierPid = pid
+  -- plateWars.teamJoinBluePlates(pid)
+  -- plateWars.bomb.baseData.carryingPid = pid
+    plateWars.matchesStartMatch(plateWars.matchesCreateMatch("Balmora"))
 end
 
-function plateWars.forceCarrierPid(pid, cmd)
-  plateWars.bomb.baseData.carrierPid = pid
+function plateWars.forcecarryingPid(pid, cmd)
+  plateWars.bomb.baseData.carryingPid = pid
 end
 
 customCommandHooks.registerCommand("joinBlue", plateWars.onTeamJoinBluePlates)
 customCommandHooks.registerCommand("joinBrown", plateWars.onTeamJoinBrownPlates)
-customCommandHooks.registerCommand("startmatch", plateWars.startMatch)
-customCommandHooks.registerCommand("forcecarrierpid", plateWars.forceCarrierPid)
+customCommandHooks.registerCommand("startmatch", plateWars.testStartMatch)
+customCommandHooks.registerCommand("forcecarryingpid", plateWars.forcecarryingPid)
 
 
 --- TEST ---
