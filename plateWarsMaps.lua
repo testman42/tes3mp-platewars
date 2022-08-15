@@ -1,10 +1,4 @@
 
--- file that contains data about maps and configuration of per-map mechanics
--- this file does NOT affect the way server selects map
-
--- TODO: describe data format
--- usedCells because it is possible that map contains a cell with no spawin points
-
 plateWarsMaps = {}
 
 plateWarsMaps.aldruhn = {}
