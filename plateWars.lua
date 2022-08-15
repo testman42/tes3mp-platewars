@@ -7,18 +7,18 @@ OnObjectActivate for plant
     Position bomb based on site location
     start bomb timer
     play plate voiceline to everyone
-    
+
 plant Timer
     Message box/other voicelines?
     spawn sub timers
     brown team wins
     Push players away
     Apply damage
-    
+
 OnObjectActivate for defuse
     disable player controls while defuse?
     timer for defuse
-    
+
 defuse timer
     cancel plant timer
     blue team wins
@@ -319,6 +319,7 @@ function plateWars.matchesCreateMatch(mapName)
     plateWars.matchesIncrementId()
 
     local matchId = plateWars.matches.currentMatchId
+
     plateWars.matches.instances[matchId] = {}
 
     local match = plateWars.matchesGetMatch(matchId)
@@ -351,7 +352,7 @@ function plateWars.matchesStartMatch(matchId)
     local match = plateWars.matchesGetMatch(matchId)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Match ID " .. tostring(matchId) .. " has started.")
     plateWars.matchesSortPlayersIntoTeams(match)
-    plateWars.startRound(match)
+    plateWars.matchesStartRound(match)
 end
 
 function plateWars.matchesEndMatch(matchId)
@@ -365,9 +366,9 @@ end
 function plateWars.matchesStartRound(match)
     -- Initiate new round data
     table.insert(match.data.rounds, plateWars.match.round.baseData)
-
-    plateWars.spawnTeams()
-    plateWars.startFreezeTime()
+    
+    plateWars.matchesSpawnTeams(plateWars.matches.currentMatchId)
+    plateWars.matchesStartFreezeTime()
     plateWars.teamAddBombRandom()
 end
 
@@ -376,16 +377,16 @@ function plateWars.matchesEndRound(matchId)
   local match = plateWars.matchesGetMatch(matchId)
   local roundCount = match.rounds
   if roundCount < plateWars.match then
-    plateWars.startRound(match)
+    plateWars.matchesStartRound(match)
   else
-    plateWars.endMatch(matchId)
+    plateWars.mathcesEndMatch(matchId)
   end
 end
 
 function plateWars.matchesSortPlayersIntoTeams(match)
     -- add player to brown team only when blue team has more players
     for pid, player in pairs(Players) do
-        if #plateWars.teams.bluePlatesPids > #plateWars.teams.brownPlatesPids then
+        if #plateWars.teams.baseData.bluePlatesPids > #plateWars.teams.baseData.brownPlatesPids then
             plateWars.teamJoinBrownPlates(pid)
         else
             plateWars.teamJoinBluePlates(pid)
@@ -415,21 +416,17 @@ function plateWars.matchesSpawnTeams(matchId)
 end
 
 function plateWars.matchesSpawnBluePlate(match, pid)
-    local map = plateWars.maps[match.data.map]
-
-    tes3mp.SetCell(pid, map.cell)
+    local map = plateWars.maps["Balmora"] -- temporary for testing
+    tes3mp.SetCell(pid, map.cellDescription)
     tes3mp.SetPos(pid, map.bluePlatesSpawnPoint[1], map.bluePlatesSpawnPoint[2], map.bluePlatesSpawnPoint[3])
-
     tes3mp.SendCell(pid)
     tes3mp.SendPos(pid)
 end
 
 function plateWars.matchesSpawnBrownPlate(match, pid)
-    local map = plateWars.maps[match.data.map]
-
-    tes3mp.SetCell(pid, map.cell)
+    local map = plateWars.maps["Balmora"] -- temorary for testing
+    tes3mp.SetCell(pid, map.cellDescription)
     tes3mp.SetPos(pid, map.brownPlatesSpawnPoint[1], map.brownPlatesSpawnPoint[2], map.brownPlatesSpawnPoint[3])
-
     tes3mp.SendCell(pid)
     tes3mp.SendPos(pid)
 end
@@ -438,7 +435,7 @@ end
 -- If player disconnects prepare a timeout timer that will be started after the round has ended
 -- If player manages to reconnect prior to the round end, destroy the timeout timer
 function plateWars.matchesStartFreezeTime()
-    freezeTimer = tes3mp.CreateTimerEx("endFreezeTime", time.seconds(plateWars.config.freezeTime), "i", 1)
+    freezeTimer = tes3mp.CreateTimerEx("endFreezeTime", time.seconds(plateWars.match.baseConfig.freezeTime), "i", 1)
     tes3mp.StartTimer(freezeTimer)
     for pid, player in pairs(Players) do
         if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
@@ -457,47 +454,47 @@ end
 
 --TODO add message informing player of failed/successful join
 function plateWars.teamJoin(pid, teamPidsTable)
-    if not tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid) and not tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid) then
-        if #teamPidsTable < plateWars.teams.baseData.maxPlayersPerTeam then
+    if not tableHelper.containsValue(plateWars.teams.baseData.bluePlatesPids, pid) and not tableHelper.containsValue(plateWars.teams.baseData.brownPlatesPids, pid) then
+        if #teamPidsTable < plateWars.teams.config.maxPlayersPerTeam then
             table.insert(teamPidsTable, pid)
         end
     end
 end
 
 function plateWars.teamJoinBluePlates(pid)
-    plateWars.teamJoin(pid, plateWars.teams.bluePlatesPids)
+    plateWars.teamJoin(pid, plateWars.teams.baseData.bluePlatesPids)
 end
 
 function plateWars.teamJoinBrownPlates(pid)
-    plateWars.teamJoin(pid, plateWars.teams.brownPlatesPids)
+    plateWars.teamJoin(pid, plateWars.teams.baseData.brownPlatesPids)
 end
 
 function plateWars.teamLeave(pid)
     if plateWars.teamIsBluePlate(pid) then
-        tableHelper.removeValue(plateWars.teams.bluePlatesPids, pid)
+        tableHelper.removeValue(plateWars.teams.baseData.bluePlatesPids, pid)
     elseif plateWars.teamIsBrownPlate(pid) then
-        tableHelper.removeValue(plateWars.teams.brownPlatesPids, pid)
+        tableHelper.removeValue(plateWars.teams.baseData.brownPlatesPids, pid)
     end
 end
 
 function plateWars.teamIsBluePlate(pid)
-    return tableHelper.containsValue(plateWars.teams.bluePlatesPids, pid)
+    return tableHelper.containsValue(plateWars.teams.baseData.bluePlatesPids, pid)
 end
 
 function plateWars.teamIsBrownPlate(pid)
-    return tableHelper.containsValue(plateWars.teams.brownPlatesPids, pid)
+    return tableHelper.containsValue(plateWars.teams.baseData.brownPlatesPids, pid)
 end
 
 function plateWars.teamAddBomb(pid)
     inventoryHelper.addItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}}, enumerations.inventory.ADD)
-    plateWars.bomb.baseData.carrierPid = pid
+    plateWars.bomb.baseData.carryingPid = pid
 end
 
 function plateWars.teamAddBombRandom()
     math.randomseed(os.time())
-    local randomIndex = math.random(#plateWars.teams.brownPlatesPids)
-    plateWars.teamAddBomb(plateWars.teams.brownPlatesPids[randomIndex])
+    local randomIndex = math.random(#plateWars.teams.baseData.brownPlatesPids)
+    plateWars.teamAddBomb(plateWars.teams.baseData.brownPlatesPids[randomIndex])
 end
 
 function plateWars.bombPlayTickSound(cellDescription, bombIndex)
@@ -629,13 +626,13 @@ function plateWarsDefusedTimer(pid, cellDescription, uniqueIndex)
 end
 
 function plateWars.hasBomb(pid)
-    return  plateWars.bomb.baseData.carrierPid == pid
+    return  plateWars.bomb.baseData.carryingPid == pid
 end
 
 function plateWars.removeBomb(pid)
     inventoryHelper.removeItem(Players[pid].data.inventory, plateWars.bomb.refIds.inventoryItem, 1, -1, -1, "")
     Players[pid]:LoadItemChanges({{refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}},enumerations.inventory.REMOVE)
-    plateWars.bomb.baseData.carrierPid = -1
+    plateWars.bomb.baseData.carryingPid = -1
 end
 
 function plateWars.dropBomb(pid)
@@ -646,7 +643,7 @@ function plateWars.dropBomb(pid)
     }
     --drop bomb above player's corpse
     location.posZ = location.posZ + 15
-    
+
     plateWars.removeBomb(pid)
     logicHandler.CreateObjectAtLocation(cell, location, {refId = plateWars.bomb.refIds.inventoryItem, count = 1, charge = -1, enchantmentCharge = -1, soul = ""}, "place")
 end
@@ -809,25 +806,27 @@ end
 
 function plateWars.onTeamJoinBrownPlates(pid, cmd)
     plateWars.teamJoinBrownPlates(pid)
-    -- It's just a test this doesn't cover cases where player drops the bomb and the carrierPid is reset
-    if plateWars.bomb.baseData.carrierPid == -1 then
+    -- It's just a test this doesn't cover cases where player drops the bomb and the carryingPid is reset
+    if plateWars.bomb.baseData.carryingPid == -1 then
         plateWars.teamAddBombRandom()
     end
 end
 
 function plateWars.testStartMatch(pid, cmd)
-    plateWars.teamJoinBluePlates(pid)
-    plateWars.bomb.baseData.carrierPid = pid
+  -- plateWars.teamJoinBluePlates(pid)
+  -- plateWars.bomb.baseData.carryingPid = pid
+    plateWars.matchesStartMatch(plateWars.matchesCreateMatch("Balmora"))
 end
 
-function plateWars.forceCarrierPid(pid, cmd)
-  plateWars.bomb.baseData.carrierPid = pid
+function plateWars.forcecarryingPid(pid, cmd)
+  plateWars.bomb.baseData.carryingPid = pid
 end
 
 customCommandHooks.registerCommand("joinBlue", plateWars.onTeamJoinBluePlates)
 customCommandHooks.registerCommand("joinBrown", plateWars.onTeamJoinBrownPlates)
-customCommandHooks.registerCommand("startmatch", plateWars.startMatch)
-customCommandHooks.registerCommand("forcecarrierpid", plateWars.forceCarrierPid)
+customCommandHooks.registerCommand("startmatch", plateWars.testStartMatch)
+customCommandHooks.registerCommand("forcecarryingpid", plateWars.forcecarryingPid)
+
 
 
 --- TEST ---
