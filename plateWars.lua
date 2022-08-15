@@ -319,7 +319,8 @@ function plateWars.matchesCreateMatch(mapName)
     plateWars.matchesIncrementId()
 
     local matchId = plateWars.matches.currentMatchId
-    plateWars.matches.instances[matchId] = {"the_match"}
+
+    plateWars.matches.instances[matchId] = {}
 
     local match = plateWars.matchesGetMatch(matchId)
 
@@ -378,7 +379,7 @@ function plateWars.matchesEndRound(matchId)
   if roundCount < plateWars.match then
     plateWars.matchesStartRound(match)
   else
-    plateWars.endMatch(matchId)
+    plateWars.matchesEndMatch(matchId)
   end
 end
 
