@@ -366,7 +366,7 @@ end
 function plateWars.matchesStartRound(match)
     -- Initiate new round data
     table.insert(match.data.rounds, plateWars.match.round.baseData)
-
+    
     plateWars.matchesSpawnTeams(plateWars.matches.currentMatchId)
     plateWars.matchesStartFreezeTime()
     plateWars.teamAddBombRandom()
@@ -379,7 +379,11 @@ function plateWars.matchesEndRound(matchId)
   if roundCount < plateWars.match then
     plateWars.matchesStartRound(match)
   else
+<<<<<<< HEAD
     plateWars.matchesEndMatch(matchId)
+=======
+    plateWars.mathcesEndMatch(matchId)
+>>>>>>> dc935033ffbb4d18fcdb387fd106109b8bba60ae
   end
 end
 
@@ -416,21 +420,17 @@ function plateWars.matchesSpawnTeams(matchId)
 end
 
 function plateWars.matchesSpawnBluePlate(match, pid)
-    local map = plateWars.maps["Balmora"]
-
+    local map = plateWars.maps["Balmora"] -- temporary for testing
     tes3mp.SetCell(pid, map.cellDescription)
     tes3mp.SetPos(pid, map.bluePlatesSpawnPoint[1], map.bluePlatesSpawnPoint[2], map.bluePlatesSpawnPoint[3])
-
     tes3mp.SendCell(pid)
     tes3mp.SendPos(pid)
 end
 
 function plateWars.matchesSpawnBrownPlate(match, pid)
-    local map = plateWars.maps["Balmora"]
-
+    local map = plateWars.maps["Balmora"] -- temorary for testing
     tes3mp.SetCell(pid, map.cellDescription)
     tes3mp.SetPos(pid, map.brownPlatesSpawnPoint[1], map.brownPlatesSpawnPoint[2], map.brownPlatesSpawnPoint[3])
-
     tes3mp.SendCell(pid)
     tes3mp.SendPos(pid)
 end
@@ -830,6 +830,7 @@ customCommandHooks.registerCommand("joinBlue", plateWars.onTeamJoinBluePlates)
 customCommandHooks.registerCommand("joinBrown", plateWars.onTeamJoinBrownPlates)
 customCommandHooks.registerCommand("startmatch", plateWars.testStartMatch)
 customCommandHooks.registerCommand("forcecarryingpid", plateWars.forcecarryingPid)
+
 
 
 --- TEST ---
