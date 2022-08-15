@@ -29,7 +29,7 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
-plateWarsMaps = require("custom/csMaps")
+plateWarsMaps = require("custom/plateWarsMaps")
 
 plateWars.matches = {}
 plateWars.matches = {
