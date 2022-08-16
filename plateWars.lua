@@ -389,8 +389,6 @@ function plateWars.matchesSortPlayersIntoTeams(match)
             plateWars.teamJoinBrownPlates(pid)
         end
     end
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "brown pids " .. tostring(#plateWars.teams.baseData.brownPlatesPids))
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "blue pids " .. tostring(#plateWars.teams.baseData.bluePlatesPids))
 end
 
 function plateWars.matchesSpawnTeams(matchId)
