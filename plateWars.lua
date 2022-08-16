@@ -29,9 +29,13 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
+<<<<<<< HEAD
 
 plateWarsMaps = {}
 plateWarsMaps = jsonInterface.load("custom/plateWarsMaps.json")
+=======
+plateWarsMaps = require("custom/plateWarsMaps")
+>>>>>>> d360fd54b02a1c0290270d7458143c269f9a9f78
 
 plateWars.matches = {}
 plateWars.matches = {
