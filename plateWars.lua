@@ -448,8 +448,8 @@ end
 
 function plateWars.LoadPlayerItems(pid)
     Players[pid]:QuicksaveToDrive()
-	  Players[pid]:LoadInventory()
-	  Players[pid]:LoadEquipment()
+    Players[pid]:LoadInventory()
+    Players[pid]:LoadEquipment()
 end
 
 -- Freeze time should react to player's disconnecting
