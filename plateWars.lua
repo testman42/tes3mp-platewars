@@ -29,7 +29,9 @@ local plateWars = {}
 
 local logPrefix = "Plate Wars: "
 
-plateWarsMaps = require("custom/csMaps")
+
+plateWarsMaps = {}
+plateWarsMaps = jsonInterface.load("custom/plateWarsMaps.json")
 
 plateWars.matches = {}
 plateWars.matches = {
@@ -67,14 +69,13 @@ plateWars.teams = {}
 plateWars.teams.baseData = {}
 plateWars.teams.config = {}
 
-plateWars.teams.uniforms = {{"expensive_shirt_02", "expensive_pants_02", "expensive_shoes_02"}, {"expensive_shirt_01", "expensive_pants_01", "expensive_shoes_01"}}
-
+plateWars.teams.uniforms = {["bluePlates"] = {"expensive_shirt_02", "expensive_pants_02", "expensive_shoes_02"}, ["brownPlates"] = {"expensive_shirt_01", "expensive_pants_01", "expensive_shoes_01"}}
+-- plateWars.teams.uniforms["bluePlates"] = {"expensive_shirt_02", "expensive_pants_02", "expensive_shoes_02"}
+-- plateWars.teams.uniforms["brownPlates"] = {"expensive_shirt_01", "expensive_pants_01", "expensive_shoes_01"}
 
 plateWars.teams.baseData = {
     bluePlatesPids = {},
     brownPlatesPids = {},
-    bluePlatesIndex = 1,
-    brownPlatesIndex = 2
 }
 
 plateWars.teams.config = {
@@ -338,7 +339,6 @@ function plateWars.matchesCreateMatch(mapData)
     end
 
     plateWars.match.baseData.mapData = mapData
-
     return matchId
 end
 
@@ -364,7 +364,6 @@ end
 function plateWars.matchesStartRound(match)
     -- Initiate new round data
     table.insert(match.data.rounds, plateWars.match.round.baseData)
-
     plateWars.matchesSpawnTeams(plateWars.matches.currentMatchId)
     plateWars.matchesStartFreezeTime()
     plateWars.teamAddBombRandom()
@@ -384,29 +383,30 @@ end
 function plateWars.matchesSortPlayersIntoTeams(match)
     -- add player to brown team only when blue team has more players
     for pid, player in pairs(Players) do
-        if #plateWars.teams.baseData.bluePlatesPids > #plateWars.teams.baseData.brownPlatesPids then
-            plateWars.teamJoinBrownPlates(pid)
-        else
+        if #plateWars.teams.baseData.brownPlatesPids > #plateWars.teams.baseData.bluePlatesPids then -- first player always joins brown team for testing purposes
             plateWars.teamJoinBluePlates(pid)
+        else
+            plateWars.teamJoinBrownPlates(pid)
         end
     end
+    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "brown pids " .. tostring(#plateWars.teams.baseData.brownPlatesPids))
+    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "blue pids " .. tostring(#plateWars.teams.baseData.bluePlatesPids))
 end
 
 function plateWars.matchesSpawnTeams(matchId)
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Spawning players")
-
     local match = plateWars.matchesGetMatch(matchId)
 
-    for _, pid in ipairs(match.data.teams.bluePlatesPids) do
+    for _, pid in ipairs(plateWars.teams.baseData.bluePlatesPids) do
         if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
-            plateWars.matchesSpawnPlayers(match, pid, plateWars.getTeamIndex(pid))
+            plateWars.matchesSpawnPlayers(match, pid, plateWars.getTeam(pid))
             tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to blue team")
         end
     end
 
-    for _, pid in ipairs(match.data.teams.brownPlatesPids) do
+    for _, pid in ipairs(plateWars.teams.baseData.brownPlatesPids) do
         if Players[pid] ~= nil and Players[pid]:IsLoggedIn() then
-            plateWars.matchesSpawnPlayers(match, pid, plateWars.getTeamIndex(pid))
+            plateWars.matchesSpawnPlayers(match, pid, plateWars.getTeam(pid))
             tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Adding player to brown team")
         end
     end
@@ -414,44 +414,44 @@ function plateWars.matchesSpawnTeams(matchId)
     -- TODO handle players that have disconnected, so that the match can be paused while waiting for the pid to reconnect
 end
 
-function plateWars.matchesSpawnPlayers(match, pid, teamIndex)
+function plateWars.matchesSpawnPlayers(match, pid, team)
     math.random(1, 7) -- Improves RNG? LUA's random isn't great
     math.random(1, 7)
     local randomLocationIndex = math.random(1, 7)
     local possibleSpawnLocations = plateWars.match.baseData.mapData.teamSpawnLocations
-    plateWars.equipUniforms(pid, teamIndex)
+    plateWars.equipUniforms(pid, team)
     plateWars.LoadPlayerItems(pid)
-    tes3mp.SetCell(pid, possibleSpawnLocations[teamIndex][randomLocationIndex][1]) -- attempt to index a nil value
-    tes3mp.SetPos(pid, possibleSpawnLocations[teamIndex][randomLocationIndex][2], possibleSpawnLocations[teamIndex][randomLocationIndex][3], possibleSpawnLocations[teamIndex][randomLocationIndex][4])
+    tes3mp.SetCell(pid, possibleSpawnLocations[team][randomLocationIndex][1])
+    tes3mp.SetPos(pid, possibleSpawnLocations[team][randomLocationIndex][2], possibleSpawnLocations[team][randomLocationIndex][3], possibleSpawnLocations[team][randomLocationIndex][4])
 
     tes3mp.SendCell(pid)
     tes3mp.SendPos(pid)
 end
 
-function plateWars.getTeamIndex(pid)
+function plateWars.getTeam(pid)
     if plateWars.teamIsBluePlate(pid) then
-        teamIndex = 1
+        team = "bluePlates"
     else
-        teamIndex = 2
+        team = "brownPlates"
     end
-    return teamIndex
+    return team
 end
 
-function plateWars.equipUniforms(pid, teamIndex)
+function plateWars.equipUniforms(pid, team)
     local race = string.lower(Players[pid].data.character.race)
     if race ~= "argonian" and race ~= "khajiit" then -- don't give shoes
-        Players[pid].data.equipment[7] = { refId = plateWars.teams.uniforms[teamIndex][3], count = 1, charge = -1 }
+        Players[pid].data.equipment[7] = { refId = plateWars.teams.uniforms[team][3], count = 1, charge = -1 }
     end
       -- give shirt
-    Players[pid].data.equipment[8] = { refId = plateWars.teams.uniforms[teamIndex][1], count = 1, charge = -1 }
+    Players[pid].data.equipment[8] = { refId = plateWars.teams.uniforms[team][1], count = 1, charge = -1 }
       --give pants
-    Players[pid].data.equipment[9] = { refId = plateWars.teams.uniforms[teamIndex][2], count = 1, charge = -1 }
+    Players[pid].data.equipment[9] = { refId = plateWars.teams.uniforms[team][2], count = 1, charge = -1 }
 end
 
 function plateWars.LoadPlayerItems(pid)
-    Players[pid]:Save(pid)
-	  Players[pid]:LoadInventory(pid)
-	  Players[pid]:LoadEquipment(pid)
+    Players[pid]:QuicksaveToDrive()
+	  Players[pid]:LoadInventory()
+	  Players[pid]:LoadEquipment()
 end
 
 -- Freeze time should react to player's disconnecting
@@ -517,6 +517,10 @@ end
 function plateWars.teamAddBombRandom()
     math.randomseed(os.time())
     local randomIndex = math.random(#plateWars.teams.baseData.brownPlatesPids)
+    -- if only 1 player is on the server and was put on blue team. just temporary for testing so it doesn't crash when you do /startmatch
+    if #plateWars.teams.baseData.brownPlatesPids == 0 then
+        return
+    end
     plateWars.teamAddBomb(plateWars.teams.baseData.brownPlatesPids[randomIndex])
 end
 
@@ -767,6 +771,7 @@ function plateWars.OnServerPostInitHandler()
         local record = plateWars.sounds.records[refId]
         RecordStores[record.type].data.permanentRecords[refId] = tableHelper.deepCopy(record.data)
     end
+
     tes3mp.LogMessage(enumerations.log.INFO, logPrefix .. "Script running")
 end
 
@@ -839,7 +844,6 @@ function plateWars.testStartMatch(pid, cmd)
     local randomMapIndex = math.random(1, #plateWars.match.baseData.matchlist)
     local firstMatch = plateWars.match.baseData.matchlist[randomMapIndex]
     plateWars.matchesStartMatch(plateWars.matchesCreateMatch(plateWarsMaps[firstMatch]))
-
 end
 
 function plateWars.forcecarryingPid(pid, cmd)
