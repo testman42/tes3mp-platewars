@@ -389,8 +389,6 @@ function plateWars.matchesSortPlayersIntoTeams(match)
             plateWars.teamJoinBrownPlates(pid)
         end
     end
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "brown pids " .. tostring(#plateWars.teams.baseData.brownPlatesPids))
-    tes3mp.LogAppend(enumerations.log.INFO, "------------------------- " .. "blue pids " .. tostring(#plateWars.teams.baseData.bluePlatesPids))
 end
 
 function plateWars.matchesSpawnTeams(matchId)
@@ -450,8 +448,8 @@ end
 
 function plateWars.LoadPlayerItems(pid)
     Players[pid]:QuicksaveToDrive()
-	  Players[pid]:LoadInventory()
-	  Players[pid]:LoadEquipment()
+    Players[pid]:LoadInventory()
+    Players[pid]:LoadEquipment()
 end
 
 -- Freeze time should react to player's disconnecting
