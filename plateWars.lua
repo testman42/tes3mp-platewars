@@ -512,14 +512,14 @@ function plateWars.teamLeave(pid)
     end
 end
 
-function plateWars.teamIsBluePlate(pid, matchID)
-    local match = plateWars.getMatch(matchId)
-    return tableHelper.containsValue(match.data.teams.bluePlatesPids, pid)
+function plateWars.teamIsBluePlate(pid)
+    local match = plateWars.matchesGetMatch(matchId)
+    return tableHelper.containsValue(plateWars.teams.baseData.bluePlatesPids, pid)
 end
 
-function plateWars.teamIsBrownPlate(pid, matchID)
-    local match = plateWars.getMatch(matchId)
-    return tableHelper.containsValue(match.data.teams.brownPlatesPids, pid)
+function plateWars.teamIsBrownPlate(pid)
+    local match = plateWars.matchesGetMatch(matchId)
+    return tableHelper.containsValue(plateWars.teams.baseData.brownPlatesPids, pid)
 end
 
 function plateWars.teamAddBomb(pid)
