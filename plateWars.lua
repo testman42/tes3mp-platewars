@@ -371,7 +371,7 @@ function plateWars.matchesStartRound(match)
     table.insert(match.data.rounds, plateWars.match.round.baseData)
     plateWars.matchesSpawnteams(plateWars.matches.currentMatchId)
     plateWars.matchesStartFreezeTime()
-    plateWars.teamAddBombRandom()
+    plateWars.teamAddBombRandom(match)
 end
 
 function plateWars.matchesEndRound(matchId)
@@ -526,14 +526,14 @@ function plateWars.teamAddBomb(pid)
     plateWars.bomb.baseData.carryingPid = pid
 end
 
-function plateWars.teamAddBombRandom()
+function plateWars.teamAddBombRandom(match)
     math.randomseed(os.time())
-    local randomIndex = math.random(#plateWars.teams.baseData.brownPlatesPids)
+    local randomIndex = math.random(#match.data.teams.brownPlatesPids)
     -- if only 1 player is on the server and was put on blue team. just temporary for testing so it doesn't crash when you do /startmatch
-    if #plateWars.teams.baseData.brownPlatesPids == 0 then
+    if #match.data.teams.brownPlatesPids == 0 then
         return
     end
-    plateWars.teamAddBomb(plateWars.teams.baseData.brownPlatesPids[randomIndex])
+    plateWars.teamAddBomb(match.data.teams.brownPlatesPids[randomIndex])
 end
 
 function plateWars.bombPlayTickSound(cellDescription, bombIndex)
